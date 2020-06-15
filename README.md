@@ -14,7 +14,7 @@ Getting started:
 
 # Committing code
 
-- We encourage you to create your own branches, and commit _very_ often. Once you've made a coherent set of changes, however small, commit them to your branch. This will help keep track of the evolution of the code, and is great practice anyway.
+- We encourage you to [create your own branches](https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging), and commit _very_ often. Once you've made a coherent set of changes, however small, commit them to your branch. This will help keep track of the evolution of the code, and is great practice anyway.
 
 - Once you have code that more or less does what it's supposed to do, don't hesitate to [push your branch to GitHub](https://help.github.com/en/github/using-git/pushing-commits-to-a-remote-repository) and [create a pull request](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request) for it. 
 
