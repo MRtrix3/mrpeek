@@ -7,7 +7,7 @@ Getting started:
 - [build](https://www.mrtrix.org/developer-documentation/build_page.html) the command and test that it works
 - familiarise yourself with the MRtrix3 codebase
   - start by reading the [main publication](https://pubmed.ncbi.nlm.nih.gov/31473352/) as an introduction
-  - using the [API documentation](https://www.mrtrix.org/developer-documentation/)
+  - browse through the [API documentation](https://www.mrtrix.org/developer-documentation/)
 - learn about [sixel encoding](https://en.wikipedia.org/wiki/Sixel)
   - figure out best tools to handle them, starting with [information on the wiki](https://github.com/MRtrix3/mrpeek/wiki)
 - take a look at the [project board](https://github.com/MRtrix3/mrpeek/projects/1), and don't hesitate to add tasks, modify the existing ones, and take on those you feel ready to tackle!
