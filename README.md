@@ -12,7 +12,7 @@ Getting started:
   - figure out best tools to handle them, starting with [information on the wiki](https://github.com/MRtrix3/mrpeek/wiki)
 - take a look at the [project board](https://github.com/MRtrix3/mrpeek/projects/1), and don't hesitate to add tasks, modify the existing ones, and take on those you feel ready to tackle!
 
-# Committing code
+## working on the code
 
 - We encourage you to [create your own branches](https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging), and commit _very_ often. Once you've made a coherent set of changes, however small, commit them to your branch. This will help keep track of the evolution of the code, and is great practice anyway.
 
