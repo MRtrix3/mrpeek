@@ -4,7 +4,7 @@ Getting started:
 
 - [install MRtrix3 from source](https://mrtrix.readthedocs.io/en/latest/installation/build_from_source.html)
 - clone this repo and [set it up as a module](https://mrtrix.readthedocs.io/en/latest/tips_and_tricks/external_modules.html)
-- build the command and test that it works
+- [build](https://www.mrtrix.org/developer-documentation/build_page.html) the command and test that it works
 - familiarise yourself with the MRtrix3 codebase
   - start by reading the [main publication](https://pubmed.ncbi.nlm.nih.gov/31473352/) as an introduction
   - using the [API documentation](https://www.mrtrix.org/developer-documentation/)
