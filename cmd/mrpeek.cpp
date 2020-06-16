@@ -1,6 +1,10 @@
 #include "command.h"
 #include "image.h"
 #include "algo/loop.h"
+#include "sixel.h"
+#include <ostream>
+#include "dither.h"
+#include "output.h"
 
 using namespace MR;
 using namespace App;
@@ -14,14 +18,14 @@ void usage ()
   SYNOPSIS = "raise each voxel intensity to the given power (default: 2)";
 
   ARGUMENTS
-  + Argument ("in", "the input image.").type_image_in ()
-  + Argument ("out", "the output image.").type_image_out ();
-
-  OPTIONS
-  + Option ("power", "the power by which to raise each value (default: 2)")
-  +   Argument ("value").type_float();
+  + Argument ("in", "the input image.").type_image_in ();
 }
 
+int write_function (char *data, int size, void *priv)
+{
+  std::ofstream streamfile;
+  streamfile.write(data, size);
+}
 
 
 // It is a good idea to use typedef's to help with flexibility if types need to
@@ -34,19 +38,17 @@ using value_type = float;
 // been done.
 void run ()
 {
-  // get power from command-line if supplied, default to 2.0:
-  value_type power = get_option_value ("power", 2.0);
 
   // Image to access the input data:
   auto in = Image<value_type>::open (argument[0]);
 
-  // get the header of the input data, and modify to suit the output dataset:
-  Header header (in);
-  header.datatype() = DataType::Float32;
-
-  // create the output Buffer to store the output data, based on the updated
-  // header information:
-  auto out = Image<value_type>::create (argument[1], header);
+  // set-up
+  int width = 91;
+  int height = 109;
+  unsigned char val[width*height*4];
+  int gscale;
+  sixel_dither *dither;
+  sixel_output *output;
 
   // create the loop structure. This version will traverse the image data in
   // order of increasing stride of the input dataset, to ensure contiguous
@@ -55,12 +57,19 @@ void run ()
   //
   // Note that we haven't specified any axes, so this will process datasets of
   // any dimensionality, whether 3D, 4D or ND:
-  auto loop = Loop (in);
+  auto loop = Loop (in, 0, 2);
+  in.index(2) = 50;
+  for (auto l = loop (in); l; ++l){
+    gscale = in.value() * 255 / 384;
+    val[(in.get_index(0)+(height-1-in.get_index(1))*width)*4+0] = (unsigned char) in.value(); //red
+    val[(in.get_index(0)+(height-1-in.get_index(1))*width)*4+1] = (unsigned char) in.value(); //green
+    val[(in.get_index(0)+(height-1-in.get_index(1))*width)*4+2] = (unsigned char) in.value(); //blue
+    val[(in.get_index(0)+(height-1-in.get_index(1))*width)*4+3] = (unsigned char) in.value()>0; //alpha
+  }
 
-  // run the loop:
-  for (auto l = loop (in, out); l; ++l)
-    out.value() = std::pow (in.value(), power);
-
-  // That's it! Data write-back is performed by the Image destructor,
-  // invoked when it goes out of scope at function exit.
+  // dither object
+  sixel_dither_new(&dither, 256, NULL);
+  sixel_output_new(&output, &write_function, NULL, NULL);
+  sixel_dither_initialize(dither, val, width, height, SIXEL_PIXELFORMAT_RGBA8888, SIXEL_LARGE_AUTO, SIXEL_REP_AUTO, SIXEL_QUALITY_AUTO);
+  sixel_encode(val, width, height, 1, dither, output);
 }
