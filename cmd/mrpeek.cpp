@@ -1,6 +1,7 @@
 #include "command.h"
 #include "image.h"
 #include "algo/loop.h"
+#include "adapter/extract.h"
 
 using namespace MR;
 using namespace App;
@@ -14,53 +15,80 @@ void usage ()
   SYNOPSIS = "raise each voxel intensity to the given power (default: 2)";
 
   ARGUMENTS
-  + Argument ("in", "the input image.").type_image_in ()
-  + Argument ("out", "the output image.").type_image_out ();
+  + Argument ("in", "the input image.").type_image_in ();
 
   OPTIONS
-  + Option ("power", "the power by which to raise each value (default: 2)")
-  +   Argument ("value").type_float();
+  + Option ("coord",
+            "retain data from the input image only at the coordinates "
+            "specified in the selection along the specified axis. The selection "
+            "argument expects a number sequence, which can also include the "
+            "'end' keyword.").allow_multiple()
+    + Argument ("axis").type_integer (0)
+    + Argument ("selection").type_sequence_int();
 }
 
 
 
-// It is a good idea to use typedef's to help with flexibility if types need to
-// be changed later on.
 using value_type = float;
 
-
-// This is where execution proper starts - the equivalent of main().
-// The difference is that this is invoked after all command-line parsing has
-// been done.
 void run ()
 {
-  // get power from command-line if supplied, default to 2.0:
-  value_type power = get_option_value ("power", 2.0);
+  auto image_in = Image<value_type>::open (argument[0]);
 
-  // Image to access the input data:
-  auto in = Image<value_type>::open (argument[0]);
+  auto opt = get_options ("coord");
+  vector<vector<int>> pos;
+  if (opt.size()) {
+    pos.assign (image_in.ndim(), vector<int>());
+    for (size_t n = 0; n < opt.size(); n++) {
+      int axis = opt[n][0];
+      if (axis >= (int)image_in.ndim())
+        throw Exception ("axis " + str(axis) + " provided with -coord option is out of range of input image");
+      if (pos[axis].size())
+        throw Exception ("\"coord\" option specified twice for axis " + str (axis));
+      pos[axis] = parse_ints (opt[n][1], image_in.size(axis)-1);
 
-  // get the header of the input data, and modify to suit the output dataset:
-  Header header (in);
-  header.datatype() = DataType::Float32;
+      auto minval = std::min_element(std::begin(pos[axis]), std::end(pos[axis]));
+      if (*minval < 0)
+        throw Exception ("coordinate position " + str(*minval) + " for axis " + str(axis) + " provided with -coord option is negative");
+      auto maxval = std::max_element(std::begin(pos[axis]), std::end(pos[axis]));
+      if (*maxval >= image_in.size(axis))
+        throw Exception ("coordinate position " + str(*maxval) + " for axis " + str(axis) + " provided with -coord option is out of range of input image");
+    }
 
-  // create the output Buffer to store the output data, based on the updated
-  // header information:
-  auto out = Image<value_type>::create (argument[1], header);
+    for (size_t n = 0; n < image_in.ndim(); ++n) {
+      if (pos[n].empty()) {
+        pos[n].resize (image_in.size (n));
+        for (size_t i = 0; i < pos[n].size(); i++)
+          pos[n][i] = i;
+      }
+    }
+    size_t ndims = 0;
+    for (size_t n = 0; n < image_in.ndim(); ++n) {
+      if (pos[n].size() > 1) {
+        INFO("input " + str(n) + ": positions " + str(pos[n]));
+        ++ndims;
+      }
+    }
 
-  // create the loop structure. This version will traverse the image data in
-  // order of increasing stride of the input dataset, to ensure contiguous
-  // voxel values are most likely to be processed consecutively. This helps to
-  // ensure maximum performance.
-  //
-  // Note that we haven't specified any axes, so this will process datasets of
-  // any dimensionality, whether 3D, 4D or ND:
-  auto loop = Loop (in);
+    if (ndims != 2)
+      throw Exception ("2D slice required but coordinate selection is " + str(ndims)+"D");
 
-  // run the loop:
-  for (auto l = loop (in, out); l; ++l)
-    out.value() = std::pow (in.value(), power);
+    auto extract = Adapter::make<Adapter::Extract> (image_in, pos);
+    for (size_t n = 0; n < extract.ndim(); ++n)
+      INFO("extracted " + str(n) + ": " + str(extract.size(n)));
 
-  // That's it! Data write-back is performed by the Image destructor,
-  // invoked when it goes out of scope at function exit.
+    std::string s;
+    std::stringstream ss;
+
+    ss << static_cast<char>(27);
+    ss << "Pq";
+    ss << "#0;2;0;0;0#1;2;100;100;0#2;2;0;100;0";
+    ss << "#1~~@@vv@@~~@@~~$";
+    ss << "#2?" "?}}GG}}?" "?}}?" "?-";
+    ss << "#1!14@";
+    ss << static_cast<char>(27);
+    ss << "\\";
+
+    std::cout << ss.str() << std::endl;
+  }
 }
