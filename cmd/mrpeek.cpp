@@ -19,6 +19,11 @@ void usage ()
 
   ARGUMENTS
   + Argument ("in", "the input image.").type_image_in ();
+
+  OPTIONS
+  + Option ("view", "projection view (0: coronal / 1: sagittal / 2: axial)")
+  + Option ("slice", "slice level for the chosen view. For example, the slice level of the axial view "
+                     "is detemined by the Z coordinate");
     
 }
 
@@ -43,18 +48,35 @@ void run ()
   // Image to access the input data:
   auto in = Image<value_type>::open (argument[0]);
 
+  // options
+  auto view = get_option_value("view", 0);
+  auto level = get_option_value("slice", 50);
+
   // set-up
   int width = 91;
   int height = 109;
   unsigned char val[width*height*4];
   int gscale;
+  vector<size_t> order;
   sixel_dither *dither;
   sixel_output *output;
 
+  // view
+  switch(view){
+    case 0:
+      order = {1, 2};
+      break;
+    case 1:
+      order = {0, 2};
+      break;
+    case 2:
+      order = {0, 1};
+  }
+
   // loop
-  auto loop = Lop (in, 0, 2);
-  in.index(2) = 50;
-  for (auto l = loop (in); l; ++l){
+  LoopInOrder loop (in, order);
+  in.index(view) = level;
+  for (auto l = loop.run (in); l; ++l){
     gscale = in.value() * 255 / 384;
     val[(in.get_index(0)+(height-1-in.get_index(1))*width)*4+0] = (unsigned char) in.value(); //red
     val[(in.get_index(0)+(height-1-in.get_index(1))*width)*4+1] = (unsigned char) in.value(); //green
