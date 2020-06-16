@@ -21,9 +21,11 @@ void usage ()
   + Argument ("in", "the input image.").type_image_in ();
 
   OPTIONS
-  + Option ("view", "projection view (0: coronal / 1: sagittal / 2: axial)")
+  + Option ("view", "projection view (0: sagittal / 1: coronal / 2: axial)")
+    + Argument ("value").type_integer()
   + Option ("slice", "slice level for the chosen view. For example, the slice level of the axial view "
-                     "is detemined by the Z coordinate");
+                     "is detemined by the Z coordinate")
+    + Argument ("value").type_integer();
     
 }
 
@@ -53,10 +55,7 @@ void run ()
   auto level = get_option_value("slice", 50);
 
   // set-up
-  int width = 91;
-  int height = 109;
-  unsigned char val[width*height*4];
-  int gscale;
+  int gscale, width, height;
   vector<size_t> order;
   sixel_dither *dither;
   sixel_output *output;
@@ -65,23 +64,30 @@ void run ()
   switch(view){
     case 0:
       order = {1, 2};
+      width = in.size(order[0]);
+      height = in.size(order[1]);
       break;
     case 1:
       order = {0, 2};
+      width = in.size(order[0]);
+      height = in.size(order[1]);;
       break;
     case 2:
       order = {0, 1};
+      width = in.size(order[0]);;
+      height = in.size(order[1]);;
   }
-
+  
   // loop
-  LoopInOrder loop (in, order);
+  unsigned char val[width*height*4];
+  auto loop = Loop (order);
   in.index(view) = level;
-  for (auto l = loop.run (in); l; ++l){
+  for (auto l = loop (in); l; ++l){
     gscale = in.value() * 255 / 384;
-    val[(in.get_index(0)+(height-1-in.get_index(1))*width)*4+0] = (unsigned char) in.value(); //red
-    val[(in.get_index(0)+(height-1-in.get_index(1))*width)*4+1] = (unsigned char) in.value(); //green
-    val[(in.get_index(0)+(height-1-in.get_index(1))*width)*4+2] = (unsigned char) in.value(); //blue
-    val[(in.get_index(0)+(height-1-in.get_index(1))*width)*4+3] = (unsigned char) in.value()>0; //alpha
+    val[(in.get_index(order[0])+(height-1-in.get_index(order[1]))*width)*4+0] = (unsigned char) in.value(); //red
+    val[(in.get_index(order[0])+(height-1-in.get_index(order[1]))*width)*4+1] = (unsigned char) in.value(); //green
+    val[(in.get_index(order[0])+(height-1-in.get_index(order[1]))*width)*4+2] = (unsigned char) in.value(); //blue
+    val[(in.get_index(order[0])+(height-1-in.get_index(order[1]))*width)*4+3] = (unsigned char) in.value()>0; //alpha
   }
 
   // dither object
