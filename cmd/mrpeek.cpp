@@ -23,8 +23,8 @@ void usage ()
 
 int write_function (char *data, int size, void *priv)
 {
-  std::ofstream streamfile;
-  streamfile.write(data, size);
+  std::cout.write(data, size);
+  return size;
 }
 
 
