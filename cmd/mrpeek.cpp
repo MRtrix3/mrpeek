@@ -1,7 +1,7 @@
 #include "command.h"
 #include "image.h"
 #include "algo/loop.h"
-#include "adapter/extract.h"
+#include "sixel.h"
 
 using namespace MR;
 using namespace App;
@@ -12,83 +12,101 @@ void usage ()
 {
   AUTHOR = "Joe Bloggs (joe.bloggs@acme.org)";
 
-  SYNOPSIS = "raise each voxel intensity to the given power (default: 2)";
+  SYNOPSIS = "preview images on the terminal (requires terminal with sixel support)";
 
   ARGUMENTS
   + Argument ("in", "the input image.").type_image_in ();
 
   OPTIONS
-  + Option ("coord",
-            "retain data from the input image only at the coordinates "
-            "specified in the selection along the specified axis. The selection "
-            "argument expects a number sequence, which can also include the "
-            "'end' keyword.").allow_multiple()
-    + Argument ("axis").type_integer (0)
-    + Argument ("selection").type_sequence_int();
+  + Option ("axis",
+            "specify projection of slice, as an integer representing the slice normal: "
+            "0: L/R (sagittal); 1: A/P (coronal); 2 I/S (axial). Default is 2 (axial). ")
+  +   Argument ("index").type_integer (0)
+
+  + Option ("slice",
+            "select slice to display")
+  +   Argument ("number").type_integer(0)
+
+  + Option ("scaling",
+            "specify intensity scaling of data. The image intensity will be scaled as "
+            "output = offset + scale*input, with the visible range set to [0 1]. "
+            "Default is [0 1].")
+  +   Argument ("offset").type_float()
+  +   Argument ("scale").type_float()
+
+  + Option ("crosshairs",
+            "draw crosshairs at specified position")
+  +   Argument ("x").type_integer(0)
+  +   Argument ("y").type_integer(0);
+
 }
 
 
 
 using value_type = float;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 void run ()
 {
   auto image_in = Image<value_type>::open (argument[0]);
 
-  auto opt = get_options ("coord");
-  vector<vector<int>> pos;
+  int axis = get_option_value ("axis", 2);
+  int slice = get_option_value ("slice", image_in.size(axis)/2);
+  float offset = 0.0f;
+  float scale = 1.0f;
+  auto opt = get_options ("scaling");
   if (opt.size()) {
-    pos.assign (image_in.ndim(), vector<int>());
-    for (size_t n = 0; n < opt.size(); n++) {
-      int axis = opt[n][0];
-      if (axis >= (int)image_in.ndim())
-        throw Exception ("axis " + str(axis) + " provided with -coord option is out of range of input image");
-      if (pos[axis].size())
-        throw Exception ("\"coord\" option specified twice for axis " + str (axis));
-      pos[axis] = parse_ints (opt[n][1], image_in.size(axis)-1);
-
-      auto minval = std::min_element(std::begin(pos[axis]), std::end(pos[axis]));
-      if (*minval < 0)
-        throw Exception ("coordinate position " + str(*minval) + " for axis " + str(axis) + " provided with -coord option is negative");
-      auto maxval = std::max_element(std::begin(pos[axis]), std::end(pos[axis]));
-      if (*maxval >= image_in.size(axis))
-        throw Exception ("coordinate position " + str(*maxval) + " for axis " + str(axis) + " provided with -coord option is out of range of input image");
-    }
-
-    for (size_t n = 0; n < image_in.ndim(); ++n) {
-      if (pos[n].empty()) {
-        pos[n].resize (image_in.size (n));
-        for (size_t i = 0; i < pos[n].size(); i++)
-          pos[n][i] = i;
-      }
-    }
-    size_t ndims = 0;
-    for (size_t n = 0; n < image_in.ndim(); ++n) {
-      if (pos[n].size() > 1) {
-        INFO("input " + str(n) + ": positions " + str(pos[n]));
-        ++ndims;
-      }
-    }
-
-    if (ndims != 2)
-      throw Exception ("2D slice required but coordinate selection is " + str(ndims)+"D");
-
-    auto extract = Adapter::make<Adapter::Extract> (image_in, pos);
-    for (size_t n = 0; n < extract.ndim(); ++n)
-      INFO("extracted " + str(n) + ": " + str(extract.size(n)));
-
-    std::string s;
-    std::stringstream ss;
-
-    ss << static_cast<char>(27);
-    ss << "Pq";
-    ss << "#0;2;0;0;0#1;2;100;100;0#2;2;0;100;0";
-    ss << "#1~~@@vv@@~~@@~~$";
-    ss << "#2?" "?}}GG}}?" "?}}?" "?-";
-    ss << "#1!14@";
-    ss << static_cast<char>(27);
-    ss << "\\";
-
-    std::cout << ss.str() << std::endl;
+    offset = opt[0][0];
+    scale = opt[0][1];
   }
+
+
+  int x_axis, y_axis;
+  bool x_forward, y_forward;
+  switch (axis) {
+    case 0: x_axis = 1; y_axis = 2; x_forward = false; y_forward = false; break;
+    case 1: x_axis = 0; y_axis = 2; x_forward = false; y_forward = false; break;
+    case 2: x_axis = 0; y_axis = 1; x_forward = false; y_forward = false; break;
+    default: throw Exception ("invalid axis specifier");
+  }
+
+
+  Sixel::ColourMap colourmap (100);
+  colourmap.set_scaling (offset, scale);
+
+  const int x_dim = image_in.size(x_axis);
+  const int y_dim = image_in.size(y_axis);
+
+  image_in.index(axis) = slice;
+
+  Sixel::Encoder encoder (x_dim, y_dim, colourmap);
+
+  for (int y = 0; y < y_dim; ++y) {
+    image_in.index(y_axis) = y_forward ? y : y_dim-1-y;
+    for (int x = 0; x < x_dim; ++x) {
+      image_in.index(x_axis) = x_forward ? x : x_dim-1-x;
+      encoder(x, y, image_in.value());
+    }
+  }
+
+  opt = get_options ("crosshairs");
+  if (opt.size())
+    encoder.draw_crosshairs (opt[0][0], opt[0][1]);
+
+  // encode buffer and print out:
+  encoder.write();
+
 }
