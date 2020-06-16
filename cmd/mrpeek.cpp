@@ -3,8 +3,8 @@
 #include "algo/loop.h"
 #include "sixel.h"
 #include <ostream>
-#include "dither.h"
-#include "output.h"
+#include "dither.h" // symbolic link in mrtrix3/src
+#include "output.h" // symbolic link in mrtrix3/src
 
 using namespace MR;
 using namespace App;
@@ -19,6 +19,7 @@ void usage ()
 
   ARGUMENTS
   + Argument ("in", "the input image.").type_image_in ();
+    
 }
 
 int write_function (char *data, int size, void *priv)
@@ -50,14 +51,8 @@ void run ()
   sixel_dither *dither;
   sixel_output *output;
 
-  // create the loop structure. This version will traverse the image data in
-  // order of increasing stride of the input dataset, to ensure contiguous
-  // voxel values are most likely to be processed consecutively. This helps to
-  // ensure maximum performance.
-  //
-  // Note that we haven't specified any axes, so this will process datasets of
-  // any dimensionality, whether 3D, 4D or ND:
-  auto loop = Loop (in, 0, 2);
+  // loop
+  auto loop = Lop (in, 0, 2);
   in.index(2) = 50;
   for (auto l = loop (in); l; ++l){
     gscale = in.value() * 255 / 384;
@@ -72,4 +67,6 @@ void run ()
   sixel_output_new(&output, &write_function, NULL, NULL);
   sixel_dither_initialize(dither, val, width, height, SIXEL_PIXELFORMAT_RGBA8888, SIXEL_LARGE_AUTO, SIXEL_REP_AUTO, SIXEL_QUALITY_AUTO);
   sixel_encode(val, width, height, 1, dither, output);
+
+  // save sixel file for checks
 }
