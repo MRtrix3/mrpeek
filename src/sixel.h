@@ -2,6 +2,7 @@
 #define __SIXEL_H__
 
 #include "colourmap.h"
+#include "vt_codes.h"
 
 
 namespace MR {
@@ -79,12 +80,12 @@ namespace MR {
 
         // once slice is fully specified, encode and write to stdout:
         void write () {
-          std::string out = "\033Pq$" + colourmap.spec();
+          std::string out = VT::SixelStart + colourmap.spec();
 
           for (int y = 0; y < y_dim; y += 6)
             out += encode (y);
 
-          out += "\033\\";
+          out += VT::SixelStop;
           std::cout << out;
         }
 
