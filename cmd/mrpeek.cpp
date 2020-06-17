@@ -43,7 +43,11 @@ void usage ()
   + Option ("crosshairs",
             "draw crosshairs at specified position")
   +   Argument ("x").type_integer(0)
-  +   Argument ("y").type_integer(0);
+  +   Argument ("y").type_integer(0)
+
+  + Option ("levels",
+            "number of intensity levels in the colourmap. Default is 100.")
+  +   Argument ("number").type_integer (2);
 
 }
 
@@ -77,6 +81,8 @@ void run ()
     offset = -scale*min;
   }
 
+  int levels = get_option_value ("levels", 100);
+
 
   int x_axis, y_axis;
   bool x_forward, y_forward;
@@ -88,7 +94,7 @@ void run ()
   }
 
 
-  Sixel::ColourMap colourmap (100);
+  Sixel::ColourMap colourmap (levels);
   colourmap.set_scaling (offset, scale);
 
   const int x_dim = image_in.size(x_axis);
