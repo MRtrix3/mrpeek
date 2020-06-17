@@ -3,7 +3,7 @@
 #include "command.h"
 #include "image.h"
 #include "algo/loop.h"
-#include "interp/cubic.h"
+#include "interp/nearest.h"
 #include "filter/resize.h"
 
 #include "sixel.h"
@@ -139,26 +139,27 @@ void run ()
   }
 
   Header header_target (header_in);
+  default_type image_scale = 1.0;
+  default_type original_extent;
   auto opt = get_options ("image_scale");
   if (opt.size()) {
-    default_type image_scale (opt[0][0]);
-    vector<default_type> new_voxel_size (1.0, 3);
-    Eigen::Vector3 original_extent;
+    image_scale = opt[0][0];
+    vector<default_type> new_voxel_size (3, 1.0);
     for (int d = 0; d < 3; ++d) {
       if (d != axis)
         new_voxel_size[d] = (header_in.size(d) * header_in.spacing(d)) / std::ceil (header_in.size(d) * image_scale);
       else
         new_voxel_size[d] = header_in.spacing(d);
-      original_extent[d] = header_in.size(d) * header_in.spacing(d);
+      original_extent = header_in.size(d) * header_in.spacing(d);
 
       header_target.size(d) = std::round (header_in.size(d) * header_in.spacing(d) / new_voxel_size[d] - 0.0001); // round down at .5
       for (size_t i = 0; i < 3; ++i)
-        header_target.transform()(i,3) += 0.5 * ((new_voxel_size[d] - header_target.spacing(d)) + (original_extent[d] - (header_target.size(d) * new_voxel_size[d]))) * header_target.transform()(i,d);
+        header_target.transform()(i,3) += 0.5 * ((new_voxel_size[d] - header_target.spacing(d)) + (original_extent - (header_target.size(d) * new_voxel_size[d]))) * header_target.transform()(i,d);
       header_target.spacing(d) = new_voxel_size[d];
     }
   }
 
-  Adapter::Reslice<Interp::Cubic, Image<value_type>> image_regrid(image_in, header_target, Adapter::NoTransform, Adapter::AutoOverSample); // out_of_bounds_value
+  Adapter::Reslice<Interp::Nearest, Image<value_type>> image_regrid(image_in, header_target, Adapter::NoTransform, Adapter::AutoOverSample); // out_of_bounds_value
 
   const int x_dim = image_regrid.size(x_axis);
   const int y_dim = image_regrid.size(y_axis);
@@ -196,12 +197,14 @@ void run ()
 
   Sixel::Encoder encoder (x_dim, y_dim, colourmap);
 
-  int crosshairs_x, crosshairs_y;
+  int crosshairs_x, crosshairs_y;  // relative to original image grid
   opt = get_options ("crosshairs");
   if (opt.size()){
-    crosshairs_x = opt[0][0];
-    crosshairs_y = opt[0][1];
+    const int x = opt[0][0], y = opt[0][1];
+    crosshairs_x = x_forward ? x : image_in.size(x_axis)-1-x;
+    crosshairs_y = y_forward ? y : image_in.size(y_axis)-1-y;
   }
+
 
   struct termios old_termios;
   struct termios new_termios;
@@ -226,8 +229,9 @@ void run ()
       }
     }
 
-    if (opt.size())
-      encoder.draw_crosshairs (crosshairs_x, crosshairs_y);
+    if (opt.size()) {
+      encoder.draw_crosshairs (std::round(image_scale * (crosshairs_x + 0.5)), std::round(image_scale * (crosshairs_y + 0.5)));
+    }
 
     // encode buffer and print out:
     encoder.write();
