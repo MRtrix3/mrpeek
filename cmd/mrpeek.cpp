@@ -28,11 +28,17 @@ void usage ()
   +   Argument ("number").type_integer(0)
 
   + Option ("scaling",
-            "specify intensity scaling of data. The image intensity will be scaled as "
-            "output = offset + scale*input, with the visible range set to [0 1]. "
+            "specify intensity scaling of the data. The image intensity will be scaled "
+            "as output = offset + scale*input, with the visible range set to [0 1]. "
             "Default is [0 1].")
   +   Argument ("offset").type_float()
   +   Argument ("scale").type_float()
+
+  + Option ("intensity_range",
+            "specify intensity range of the data. The image intensity will be scaled "
+            "between the specified minimum and maximum intensity values. ")
+  +   Argument ("min").type_float()
+  +   Argument ("max").type_float()
 
   + Option ("crosshairs",
             "draw crosshairs at specified position")
@@ -71,6 +77,14 @@ void run ()
   if (opt.size()) {
     offset = opt[0][0];
     scale = opt[0][1];
+  }
+  opt = get_options ("intensity_range");
+  if (opt.size()) {
+    float min = opt[0][0], max = opt[0][1];
+    // 0 = off + scale*min
+    // 1 = off + scale*max
+    scale = 1.f / (max - min);
+    offset = -scale*min;
   }
 
 
