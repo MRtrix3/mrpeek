@@ -3,8 +3,6 @@
 #include "algo/loop.h"
 #include "sixel.h"
 #include <ostream>
-#include "dither.h" // symbolic link in mrtrix3/src
-#include "output.h" // symbolic link in mrtrix3/src
 
 using namespace MR;
 using namespace App;
