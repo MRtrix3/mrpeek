@@ -1,7 +1,7 @@
 #ifndef __SIXEL_H__
 #define __SIXEL_H__
 
-#include "types.h"
+#include "colourmap.h"
 
 
 namespace MR {
@@ -9,13 +9,18 @@ namespace MR {
 
     class ColourMap {
       public:
-        ColourMap (int number_colours) :
+        ColourMap (const ::MR::ColourMap::Entry& colourmapper, int number_colours) :
           num_colours (number_colours),
           _offset(0.0),
           _scale (1.0) {
+            const auto& map_fn = colourmapper.basic_mapping;
             for (int n = 0; n <= num_colours; ++n) {
+              const Eigen::Array3f colour = 100.0*map_fn (float(n)/num_colours);
               auto ns = str(std::round ((100.0*n)/num_colours));
-              specifier += "#"+str(n)+";2;"+ns+";"+ns+";"+ns;
+              specifier += "#"+str(n)+";2;"+
+                str(std::round(colour[0]))+";"+
+                str(std::round(colour[1]))+";"+
+                str(std::round(colour[2]));
             }
             specifier += "#"+str(num_colours+1)+";2;100;100;0$\n";
           }
