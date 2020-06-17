@@ -15,7 +15,7 @@ namespace MR {
 
     void enter_raw_mode ()
     {
-      std::cout << VT::CursorOff;
+      std::cout << CursorOff << MouseTrackingOn;
 
       // enable raw mode:
       struct termios raw;
@@ -31,7 +31,7 @@ namespace MR {
     void exit_raw_mode ()
     {
       tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
-      std::cout << VT::CursorOn << "\n";
+      std::cout << CursorOn << MouseTrackingOff << "\n";
     }
 
 

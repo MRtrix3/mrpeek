@@ -10,6 +10,9 @@ namespace MR {
     constexpr const char* CursorOff = "\033[?25l";
     constexpr const char* CursorOn = "\033[?25h";
 
+    constexpr const char* MouseTrackingOn = "\033[?1002h";
+    constexpr const char* MouseTrackingOff = "\033[?1002l";
+
     constexpr char Escape = '\033';
     constexpr int Up = 0x0101;
     constexpr int Down = 0x0102;
