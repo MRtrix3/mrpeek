@@ -147,6 +147,7 @@ void run ()
 
 
 
+  std::cout << VT::CursorOff;
 
   // enable raw mode:
   struct termios raw, orig_termios;
@@ -198,5 +199,6 @@ void run ()
   }
 
   tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+  std::cout << VT::CursorOn;
 
 }
