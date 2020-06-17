@@ -55,16 +55,6 @@ using value_type = float;
 
 
 
-
-
-
-
-
-
-
-
-
-
 void run ()
 {
   auto image_in = Image<value_type>::open (argument[0]);
