@@ -2,7 +2,7 @@
 #define __SIXEL_H__
 
 #include "colourmap.h"
-#include "vt_codes.h"
+#include "vt_control.h"
 
 
 namespace MR {

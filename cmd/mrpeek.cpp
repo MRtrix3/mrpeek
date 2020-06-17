@@ -1,5 +1,3 @@
-#include <termios.h>
-
 #include "command.h"
 #include "image.h"
 #include "algo/loop.h"
@@ -181,59 +179,13 @@ void run ()
   encoder.write();
 
 
+  VT::enter_raw_mode();
 
-  std::cout << VT::CursorOff;
-
-  // enable raw mode:
-  struct termios raw, orig_termios;
-  tcgetattr(STDIN_FILENO, &raw);
-  orig_termios = raw;
-  raw.c_iflag &= ~(ICRNL | IXON);
-  raw.c_oflag &= ~(OPOST);
-  raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-  tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
-
-
-  char c;
-  while (std::cin.get(c)) {
-    if (c == 27) { // escape sequence
-      std::cin.get(c);
-      switch (c) {
-        case 91:
-          std::cin.get(c);
-          switch (c) {
-            case 53:
-              std::cin.get(c);
-              switch (c) {
-                case 126: std::cerr << "PgUp "; break;
-                default: break;
-              }
-              break;
-            case 54:
-              std::cin.get(c);
-              switch (c) {
-                case 126: std::cerr << "PgDown "; break;
-                default: break;
-              }
-              break;
-            case 65: std::cerr << "up "; break;
-            case 66: std::cerr << "down "; break;
-            case 67: std::cerr << "right "; break;
-            case 68: std::cerr << "left "; break;
-            case 90: std::cerr << "Shift-tab "; break;
-            default: break;
-          }
-          break;
-      }
-    }
-    else if (c==9) std::cerr << "tab ";
-    else if (c=='q' || c=='Q')
+  while (int c = VT::read_user_input()) {
+    if (c == 'q')
       break;
-    else
-      std::cerr << (int(c)) << " ";
   }
 
-  tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
-  std::cout << VT::CursorOn;
+  VT::exit_raw_mode();
 
 }
