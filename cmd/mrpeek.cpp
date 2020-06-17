@@ -1,3 +1,5 @@
+#include <termios.h>
+
 #include "command.h"
 #include "image.h"
 #include "algo/loop.h"
@@ -163,19 +165,81 @@ void run ()
 
   Sixel::Encoder encoder (x_dim, y_dim, colourmap);
 
-  for (int y = 0; y < y_dim; ++y) {
-    image_in.index(y_axis) = y_forward ? y : y_dim-1-y;
-    for (int x = 0; x < x_dim; ++x) {
-      image_in.index(x_axis) = x_forward ? x : x_dim-1-x;
-      encoder(x, y, image_in.value());
-    }
+  int crosshairs_x, crosshairs_y;
+  opt = get_options ("crosshairs");
+  if (opt.size()){
+    crosshairs_x = opt[0][0];
+    crosshairs_y = opt[0][1];
   }
 
-  opt = get_options ("crosshairs");
-  if (opt.size())
-    encoder.draw_crosshairs (opt[0][0], opt[0][1]);
+  struct termios old_termios;
+  struct termios new_termios;
+  tcgetattr(STDIN_FILENO, &old_termios);
+  (void) memcpy(&new_termios, &old_termios, sizeof(old_termios));
+  new_termios.c_iflag &= ~(ICRNL | IXON);
+  new_termios.c_oflag &= ~(OPOST);
+  new_termios.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
 
-  // encode buffer and print out:
-  encoder.write();
+  // start loop
+  std::cout.write("\033[2J", 4);
+  int slice_curr = slice;
+  while (true) {
+    image_in.index(axis) = slice_curr;
+    std::cout.write("\033[H", 3);
+
+    for (int y = 0; y < y_dim; ++y) {
+      image_in.index(y_axis) = y_forward ? y : y_dim-1-y;
+      for (int x = 0; x < x_dim; ++x) {
+        image_in.index(x_axis) = x_forward ? x : x_dim-1-x;
+        encoder(x, y, image_in.value());
+      }
+    }
+
+    if (opt.size())
+      encoder.draw_crosshairs (crosshairs_x, crosshairs_y);
+
+    // encode buffer and print out:
+    encoder.write();
+
+    // enter cbreak mode
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &new_termios);
+
+    // read input
+    char c;
+    std::cin.get(c);
+    if (c == 27) { // escape
+      std::cin.get(c);
+      if (c == 91) {
+        std::cin.get(c);
+        switch (c) {
+          case 53:
+            std::cin.get(c);
+            if (c == 126){
+              slice_curr++; //page up
+              break;
+            }
+            break;
+          case 54:
+            std::cin.get(c);
+            if (c == 126){
+              slice_curr--; //page down
+              break;
+            }
+            break;
+          case 65: crosshairs_y--; break; // up
+          case 66: crosshairs_y++; break; // down
+          case 67: crosshairs_x++; break; // right
+          case 68: crosshairs_x--; break; // left
+        }
+      }
+    }
+    else if (c == 'q' || c == 'Q')
+      break;
+
+    // back to normal mode
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &old_termios);
+  }
+  // make sure we end in non-cbreak mode
+  tcsetattr(STDIN_FILENO, TCSAFLUSH, &old_termios);
 
 }
