@@ -16,14 +16,28 @@ void usage ()
   SYNOPSIS = "raise each voxel intensity to the given power (default: 2)";
 
   ARGUMENTS
-  + Argument ("in", "the input image.").type_image_in ();
+  + Argument ("in", "the input image.").type_image_in();
 
   OPTIONS
-  + Option ("view", "projection view (0: sagittal / 1: coronal / 2: axial)")
+  + Option ("axis", 
+            "specify projection of slice, as an integer representing the slice normal: "
+            "0: L/R (sagittal); 1: A/P (coronal); 2 I/S (axial). Default is 2 (axial). ")
     + Argument ("value").type_integer()
-  + Option ("slice", "slice level for the chosen view. For example, the slice level of the axial view "
-                     "is detemined by the Z coordinate")
-    + Argument ("value").type_integer();
+
+  + Option ("slice", 
+            "select slice to display. Default is the middle slice.")
+    + Argument ("value").type_integer()
+
+  + Option ("scaling",
+            "specity intensity scaling of data. The image intensity will be scaled as "
+            "output = offset + scale*input. Default is [0 1].")
+    + Argument ("offset").type_float()
+    + Argument ("scale").type_float()
+
+  + Option ("crosshairs",
+            "draw crosshairs at specified position")
+    + Argument ("x").type_integer(0)
+    + Argument ("y").type_integer();
     
 }
 
@@ -49,43 +63,47 @@ void run ()
   auto in = Image<value_type>::open (argument[0]);
 
   // options
-  auto view = get_option_value("view", 0);
-  auto level = get_option_value("slice", 50);
+  auto axis = get_option_value("axis", 0);
+  auto slice = get_option_value("slice", in.size(axis)/2);
+  float offset = 0.0f;
+  float scale = 1.0f;
+  auto opt = get_options ("scaling");
+  if (opt.size()){
+    offset = opt[0][0];
+    scale = opt[0][1];
+  }
 
-  // set-up
+  // declarations
   int gscale, width, height;
   vector<size_t> order;
   sixel_dither *dither;
   sixel_output *output;
 
-  // view
-  switch(view){
-    case 0:
-      order = {1, 2};
-      width = in.size(order[0]);
-      height = in.size(order[1]);
-      break;
-    case 1:
-      order = {0, 2};
-      width = in.size(order[0]);
-      height = in.size(order[1]);;
-      break;
-    case 2:
-      order = {0, 1};
-      width = in.size(order[0]);;
-      height = in.size(order[1]);;
+  // set up image view
+  in.index(axis) = slice;
+  switch(axis){
+    case 0: order = {1, 2}; break;
+    case 1: order = {0, 2}; break;
+    case 2: order = {0, 1}; break;
+    default: throw Exception {"Invalid axis option."};
   }
+
+  // set up image parameters
+  width = in.size(order[0]);
+  height = in.size(order[1]);
   
   // loop
   unsigned char val[width*height*4];
   auto loop = Loop (order);
-  in.index(view) = level;
   for (auto l = loop (in); l; ++l){
-    gscale = in.value() * 255 / 384;
-    val[(in.get_index(order[0])+(height-1-in.get_index(order[1]))*width)*4+0] = (unsigned char) in.value(); //red
-    val[(in.get_index(order[0])+(height-1-in.get_index(order[1]))*width)*4+1] = (unsigned char) in.value(); //green
-    val[(in.get_index(order[0])+(height-1-in.get_index(order[1]))*width)*4+2] = (unsigned char) in.value(); //blue
-    val[(in.get_index(order[0])+(height-1-in.get_index(order[1]))*width)*4+3] = (unsigned char) in.value()>0; //alpha
+    gscale = in.value() * scale + offset;
+    if (gscale > 255){
+      gscale = 255;
+    }
+    val[(in.get_index(order[0])+(height-1-in.get_index(order[1]))*width)*4+0] = (unsigned char) gscale ; //red
+    val[(in.get_index(order[0])+(height-1-in.get_index(order[1]))*width)*4+1] = (unsigned char) gscale ; //green
+    val[(in.get_index(order[0])+(height-1-in.get_index(order[1]))*width)*4+2] = (unsigned char) gscale ; //blue
+    val[(in.get_index(order[0])+(height-1-in.get_index(order[1]))*width)*4+3] = (unsigned char) gscale >0; //alpha
   }
 
   // dither object
