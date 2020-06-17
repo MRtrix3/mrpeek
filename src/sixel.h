@@ -87,6 +87,7 @@ namespace MR {
 
           out += VT::SixelStop;
           std::cout << out;
+          std::cout.flush();
         }
 
       private:
