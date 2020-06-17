@@ -132,13 +132,15 @@ void run ()
     vector<default_type> new_voxel_size (1.0, 3);
     Eigen::Vector3 original_extent;
     for (int d = 0; d < 3; ++d) {
+      if (d != axis)
+        new_voxel_size[d] = (header_in.size(d) * header_in.spacing(d)) / std::ceil (header_in.size(d) * image_scale);
+      else
+        new_voxel_size[d] = header_in.spacing(d);
       original_extent[d] = header_in.size(d) * header_in.spacing(d);
-      new_voxel_size[d] = (header_in.size(d) * header_in.spacing(d)) / std::ceil (header_in.size(d) * image_scale);
+
       header_target.size(d) = std::round (header_in.size(d) * header_in.spacing(d) / new_voxel_size[d] - 0.0001); // round down at .5
-      // Here we adjust the translation to ensure the image extent is centered wrt the original extent.
-      // This is important when the new voxel size is not an exact multiple of the original extent
       for (size_t i = 0; i < 3; ++i)
-        header_target.transform()(i,3) += 0.5 * ((new_voxel_size[d] - header_target.spacing(d))  + (original_extent[d] - (header_target.size(d) * new_voxel_size[d]))) * header_target.transform()(i,d);
+        header_target.transform()(i,3) += 0.5 * ((new_voxel_size[d] - header_target.spacing(d)) + (original_extent[d] - (header_target.size(d) * new_voxel_size[d]))) * header_target.transform()(i,d);
       header_target.spacing(d) = new_voxel_size[d];
     }
   }
