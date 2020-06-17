@@ -6,6 +6,11 @@
 using namespace MR;
 using namespace App;
 
+
+#define DEFAULT_PMIN 0.2
+#define DEFAULT_PMAX 99.8
+
+
 // commmand-line description and syntax:
 // (used to produce the help page and verify validity of arguments at runtime)
 void usage ()
@@ -27,16 +32,17 @@ void usage ()
             "select slice to display")
   +   Argument ("number").type_integer(0)
 
-  + Option ("scaling",
-            "specify intensity scaling of the data. The image intensity will be scaled "
-            "as output = offset + scale*input, with the visible range set to [0 1]. "
-            "Default is [0 1].")
-  +   Argument ("offset").type_float()
-  +   Argument ("scale").type_float()
-
   + Option ("intensity_range",
             "specify intensity range of the data. The image intensity will be scaled "
-            "between the specified minimum and maximum intensity values. ")
+            "between the specified minimum and maximum intensity values. "
+            "By default, percentile scaling is used. ")
+  +   Argument ("min").type_float()
+  +   Argument ("max").type_float()
+
+  + Option ("percentile_range",
+            "specify intensity range of the data. The image intensity will be scaled "
+            "between the specified minimum and maximum percentile values. "
+            "Defaults are: " + str(DEFAULT_PMIN) + " - " + str(DEFAULT_PMAX))
   +   Argument ("min").type_float()
   +   Argument ("max").type_float()
 
@@ -81,22 +87,6 @@ void run ()
 
   int axis = get_option_value ("axis", 2);
   int slice = get_option_value ("slice", image_in.size(axis)/2);
-  float offset = 0.0f;
-  float scale = 1.0f;
-  auto opt = get_options ("scaling");
-  if (opt.size()) {
-    offset = opt[0][0];
-    scale = opt[0][1];
-  }
-  opt = get_options ("intensity_range");
-  if (opt.size()) {
-    float min = opt[0][0], max = opt[0][1];
-    // 0 = off + scale*min
-    // 1 = off + scale*max
-    scale = 1.f / (max - min);
-    offset = -scale*min;
-  }
-
 
   int x_axis, y_axis;
   bool x_forward, y_forward;
@@ -107,27 +97,37 @@ void run ()
     default: throw Exception ("invalid axis specifier");
   }
 
-
-
   const int x_dim = image_in.size(x_axis);
   const int y_dim = image_in.size(y_axis);
 
   image_in.index(axis) = slice;
 
-  std::vector<value_type> currentslice (x_dim*y_dim);
-  size_t k = 0;
-  for (int y = 0; y < y_dim; ++y) {
-    image_in.index(y_axis) = y_forward ? y : y_dim-1-y;
-    for (int x = 0; x < x_dim; ++x, ++k) {
-      image_in.index(x_axis) = x_forward ? x : x_dim-1-x;
-      currentslice[k] = image_in.value();
+  value_type vmin, vmax;
+  auto opt = get_options ("intensity_range");
+  if (opt.size()) {
+    vmin = opt[0][0]; vmax = opt[0][1];
+  } else {
+    float pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX;
+    opt = get_options ("percentile_range");
+    if (opt.size()) {
+      pmin = opt[0][0]; pmax = opt[0][1];
     }
+    std::vector<value_type> currentslice (x_dim*y_dim);
+    size_t k = 0;
+    for (int y = 0; y < y_dim; ++y) {
+      image_in.index(y_axis) = y_forward ? y : y_dim-1-y;
+      for (int x = 0; x < x_dim; ++x, ++k) {
+        image_in.index(x_axis) = x_forward ? x : x_dim-1-x;
+        currentslice[k] = image_in.value();
+      }
+    }
+    vmin = percentile(currentslice, pmin);
+    vmax = percentile(currentslice, pmax);
+    INFO("Selected intensity range: " + str(vmin) + " - " +str(vmax));
   }
-  value_type vmin = percentile(currentslice, 0.0f);
-  value_type vmax = percentile(currentslice, 99.8f);
 
-  scale = 1.f / (vmax - vmin);
-  offset = -scale*vmin;
+  value_type scale = 1.0 / (vmax - vmin);
+  value_type offset = -scale*vmin;
   Sixel::ColourMap colourmap (100);
   colourmap.set_scaling (offset, scale);
 
