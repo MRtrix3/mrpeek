@@ -178,14 +178,20 @@ void run ()
   // encode buffer and print out:
   encoder.write();
 
-
   VT::enter_raw_mode();
+  try {
 
-  while (int c = VT::read_user_input()) {
-    if (c == 'q')
-      break;
+    while (int c = VT::read_user_input()) {
+      if (c == VT::Ctrl ('q'))
+        break;
+      std::cerr << c << " ";
+    }
+    VT::exit_raw_mode();
+
   }
-
-  VT::exit_raw_mode();
+  catch (Exception&) {
+    VT::exit_raw_mode();
+    throw;
+  }
 
 }
