@@ -1,7 +1,11 @@
 #include "command.h"
 #include "image.h"
 #include "algo/loop.h"
+#include "adapter/extract.h"
+#include "interp/nearest.h"
+#include "interp/linear.h"
 #include "interp/cubic.h"
+#include "interp/sinc.h"
 #include "filter/resize.h"
 
 #include "sixel.h"
@@ -13,6 +17,7 @@ using namespace App;
 #define DEFAULT_PMIN 0.2
 #define DEFAULT_PMAX 99.8
 
+const char* interp_choices[] = { "nearest", "linear", "cubic", "sinc", NULL };
 vector<std::string> colourmap_choices_std;
 vector<const char*> colourmap_choices_cstr;
 
@@ -82,7 +87,10 @@ void usage ()
 
   + Option   ("image_scale",
             "scale the image size by the supplied factor")
-    + Argument ("factor").type_float();
+    + Argument ("factor").type_float()
+
+  + Option ("interp", "set the interpolation method to use when reslicing (choices: nearest, linear, cubic, sinc. Default: nearest).")
+    + Argument ("method").type_choice (interp_choices);
 }
 
 
@@ -127,6 +135,16 @@ void run ()
   const auto colourmapper = ColourMap::maps[colourmap_ID];
   int levels = get_option_value ("levels", 100);
 
+  int interp = 0;  // nearest
+  auto opt = get_options ("interp");
+  if (opt.size()) {
+    interp = opt[0][0];
+  }
+
+  vector<int> oversample(3, 1);
+  if (interp != 0)
+    oversample = Adapter::AutoOverSample;
+
   int x_axis, y_axis;
   bool x_forward, y_forward;
   switch (axis) {
@@ -136,32 +154,66 @@ void run ()
     default: throw Exception ("invalid axis specifier");
   }
 
-  Header header_target (header_in);
-  auto opt = get_options ("image_scale");
+
+  auto input_slice = Adapter::Extract1D<Image<value_type>> (image_in, axis, vector<int>{slice});
+
+  Header header_target (input_slice);
+  opt = get_options ("image_scale");
   if (opt.size()) {
     default_type image_scale (opt[0][0]);
-    vector<default_type> new_voxel_size (1.0, 3);
+    vector<default_type> new_voxel_size (3, 1.0);
     Eigen::Vector3 original_extent;
     for (int d = 0; d < 3; ++d) {
       if (d != axis)
-        new_voxel_size[d] = (header_in.size(d) * header_in.spacing(d)) / std::ceil (header_in.size(d) * image_scale);
+        new_voxel_size[d] = (input_slice.size(d) * input_slice.spacing(d)) / std::ceil (input_slice.size(d) * image_scale);
       else
-        new_voxel_size[d] = header_in.spacing(d);
-      original_extent[d] = header_in.size(d) * header_in.spacing(d);
+        new_voxel_size[d] = input_slice.spacing(d);
+      original_extent[d] = input_slice.size(d) * input_slice.spacing(d);
 
-      header_target.size(d) = std::round (header_in.size(d) * header_in.spacing(d) / new_voxel_size[d] - 0.0001); // round down at .5
+      header_target.size(d) = std::round (input_slice.size(d) * input_slice.spacing(d) / new_voxel_size[d] - 0.0001); // round down at .5
       for (size_t i = 0; i < 3; ++i)
         header_target.transform()(i,3) += 0.5 * ((new_voxel_size[d] - header_target.spacing(d)) + (original_extent[d] - (header_target.size(d) * new_voxel_size[d]))) * header_target.transform()(i,d);
       header_target.spacing(d) = new_voxel_size[d];
     }
   }
 
-  Adapter::Reslice<Interp::Cubic, Image<value_type>> image_regrid(image_in, header_target, Adapter::NoTransform, Adapter::AutoOverSample); // out_of_bounds_value
+  // copy to new image
+  auto image_slice = Image<value_type>::scratch (header_target);
 
-  const int x_dim = image_regrid.size(x_axis);
-  const int y_dim = image_regrid.size(y_axis);
+  VAR(Stride::get (image_in));
+  VAR(Stride::get (input_slice));
+  VAR(Stride::get (header_target));
+  VAR(Stride::get (image_slice));
+  for (int d = 0; d < 3; ++d) {
+    VAR(d);
+    VAR(input_slice.size(d));
+    VAR(header_target.size(d));
+    VAR(image_slice.size(d));
+  }
 
-  image_regrid.index(axis) = slice;
+  switch (interp) {
+  case 0:
+    Filter::reslice <Interp::Nearest> (input_slice, image_slice, Adapter::NoTransform, oversample);
+    break;
+  case 1:
+    Filter::reslice <Interp::Linear> (input_slice, image_slice, Adapter::NoTransform, oversample);
+    break;
+  case 2:
+    Filter::reslice <Interp::Cubic> (input_slice, image_slice, Adapter::NoTransform, oversample);
+    break;
+  case 3:
+    Filter::reslice <Interp::Sinc> (input_slice, image_slice, Adapter::NoTransform, oversample);
+    break;
+  default:
+    assert (0);
+    break;
+  }
+
+  // or use adapter
+  // Adapter::Reslice<Interp::Cubic, Adapter::Extract1D<Image<value_type>>> image_slice(input_slice, header_target, Adapter::NoTransform, oversample); // out_of_bounds_value
+
+  const int x_dim = image_slice.size(x_axis);
+  const int y_dim = image_slice.size(y_axis);
 
   value_type vmin, vmax;
   opt = get_options ("intensity_range");
@@ -176,10 +228,10 @@ void run ()
     std::vector<value_type> currentslice (x_dim*y_dim);
     size_t k = 0;
     for (int y = 0; y < y_dim; ++y) {
-      image_regrid.index(y_axis) = y_forward ? y : y_dim-1-y;
+      image_slice.index(y_axis) = y_forward ? y : y_dim-1-y;
       for (int x = 0; x < x_dim; ++x, ++k) {
-        image_regrid.index(x_axis) = x_forward ? x : x_dim-1-x;
-        currentslice[k] = image_regrid.value();
+        image_slice.index(x_axis) = x_forward ? x : x_dim-1-x;
+        currentslice[k] = image_slice.value();
       }
     }
     vmin = percentile(currentslice, pmin);
@@ -195,10 +247,10 @@ void run ()
   Sixel::Encoder encoder (x_dim, y_dim, colourmap);
 
   for (int y = 0; y < y_dim; ++y) {
-    image_regrid.index(y_axis) = y_forward ? y : y_dim-1-y;
+    image_slice.index(y_axis) = y_forward ? y : y_dim-1-y;
     for (int x = 0; x < x_dim; ++x) {
-      image_regrid.index(x_axis) = x_forward ? x : x_dim-1-x;
-      encoder(x, y, image_regrid.value());
+      image_slice.index(x_axis) = x_forward ? x : x_dim-1-x;
+      encoder(x, y, image_slice.value());
     }
   }
 
