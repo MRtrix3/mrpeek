@@ -1,13 +1,11 @@
 #include "command.h"
 #include "image.h"
 #include "algo/loop.h"
-#include "interp/linear.h"
+#include "interp/cubic.h"
 #include "filter/resize.h"
-// #include "adapter/regrid.h"
 
 #include "sixel.h"
 
-const char* interp_choices[] = { "nearest", "linear", "cubic", "sinc", NULL };
 using namespace MR;
 using namespace App;
 
@@ -52,18 +50,7 @@ void usage ()
 
   + OptionGroup ("Regridding options")
     + Option   ("image_scale", "scale the image size by the supplied factor")
-    + Argument ("factor").type_float()
-
-    + Option ("interp", "set the interpolation method to use when reslicing (choices: nearest, linear, cubic, sinc. Default: cubic).")
-    + Argument ("method").type_choice (interp_choices)
-
-    + Option ("oversample",
-        "set the amount of over-sampling (in the target space) to perform when regridding. This is particularly "
-        "relevant when downsamping a high-resolution image to a low-resolution image, to avoid aliasing artefacts. "
-        "This can consist of a single integer, or a comma-separated list of 3 integers if different oversampling "
-        "factors are desired along the different axes. Default is determined from ratio of voxel dimensions (disabled "
-        "for nearest-neighbour interpolation).")
-    + Argument ("factor").type_sequence_int();
+    + Argument ("factor").type_float();
 }
 
 
@@ -100,18 +87,6 @@ void run ()
     offset = -scale*min;
   }
 
-  int interp = 2;  // cubic
-  opt = get_options ("interp");
-  if (opt.size()) {
-    interp = opt[0][0];
-  }
-
-  vector<int> oversample = Adapter::AutoOverSample;
-  opt = get_options ("oversample");
-  if (opt.size()) {
-    oversample = opt[0][0];
-  }
-
   int x_axis, y_axis;
   bool x_forward, y_forward;
   switch (axis) {
@@ -124,6 +99,7 @@ void run ()
 
   Sixel::ColourMap colourmap (100);
   colourmap.set_scaling (offset, scale);
+
 
   Header header_target (header_in);
   opt = get_options ("image_scale");
@@ -145,7 +121,7 @@ void run ()
     }
   }
 
-  Adapter::Reslice<Interp::Linear, Image<value_type>> image_regrid(image_in, header_target);  // NoTransform, AutoOverSample, out_of_bounds_value
+  Adapter::Reslice<Interp::Cubic, Image<value_type>> image_regrid(image_in, header_target, Adapter::NoTransform, Adapter::AutoOverSample); // out_of_bounds_value
 
   const int x_dim = image_regrid.size(x_axis);
   const int y_dim = image_regrid.size(y_axis);
