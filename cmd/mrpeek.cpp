@@ -52,6 +52,26 @@ void usage ()
 using value_type = float;
 
 
+// calculate percentile of a list of numbers
+// implementation based on `mrthreshold` - can be merged with Math::median in due course
+template <class Container>
+value_type percentile (Container& data, default_type percentile)
+{
+  if (percentile == 100.0) {
+    return default_type(*std::max_element (data.begin(), data.end()));
+  } else if (percentile == 0.0) {
+    return default_type(*std::min_element (data.begin(), data.end()));
+  } else {
+    const default_type interp_index = 0.01 * percentile * (data.size()-1);
+    const size_t lower_index = size_t(std::floor (interp_index));
+    const default_type mu = interp_index - default_type(lower_index);
+    std::nth_element (data.begin(), data.begin() + lower_index, data.end());
+    const default_type lower_value = default_type(data[lower_index]);
+    std::nth_element (data.begin(), data.begin() + lower_index + 1, data.end());
+    const default_type upper_value = default_type(data[lower_index + 1]);
+    return (1.0-mu)*lower_value + mu*upper_value;
+  }
+}
 
 
 
@@ -88,13 +108,28 @@ void run ()
   }
 
 
-  Sixel::ColourMap colourmap (100);
-  colourmap.set_scaling (offset, scale);
 
   const int x_dim = image_in.size(x_axis);
   const int y_dim = image_in.size(y_axis);
 
   image_in.index(axis) = slice;
+
+  std::vector<value_type> currentslice (x_dim*y_dim);
+  size_t k = 0;
+  for (int y = 0; y < y_dim; ++y) {
+    image_in.index(y_axis) = y_forward ? y : y_dim-1-y;
+    for (int x = 0; x < x_dim; ++x, ++k) {
+      image_in.index(x_axis) = x_forward ? x : x_dim-1-x;
+      currentslice[k] = image_in.value();
+    }
+  }
+  value_type vmin = percentile(currentslice, 0.0f);
+  value_type vmax = percentile(currentslice, 99.8f);
+
+  scale = 1.f / (vmax - vmin);
+  offset = -scale*vmin;
+  Sixel::ColourMap colourmap (100);
+  colourmap.set_scaling (offset, scale);
 
   Sixel::Encoder encoder (x_dim, y_dim, colourmap);
 
