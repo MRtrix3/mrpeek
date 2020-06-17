@@ -6,10 +6,27 @@
 using namespace MR;
 using namespace App;
 
+vector<std::string> colourmap_choices_std;
+vector<const char*> colourmap_choices_cstr;
+
 // commmand-line description and syntax:
 // (used to produce the help page and verify validity of arguments at runtime)
 void usage ()
 {
+  // lifted from cmd/mrcolour.cpp:
+  const ColourMap::Entry* entry = ColourMap::maps;
+  do {
+    if (strcmp(entry->name, "Complex"))
+      colourmap_choices_std.push_back (lowercase (entry->name));
+    ++entry;
+  } while (entry->name);
+  colourmap_choices_cstr.reserve (colourmap_choices_std.size() + 1);
+  for (const auto& s : colourmap_choices_std)
+    colourmap_choices_cstr.push_back (s.c_str());
+  colourmap_choices_cstr.push_back (nullptr);
+
+
+
   AUTHOR = "Joe Bloggs (joe.bloggs@acme.org)";
 
   SYNOPSIS = "preview images on the terminal (requires terminal with sixel support)";
@@ -39,6 +56,11 @@ void usage ()
             "between the specified minimum and maximum intensity values. ")
   +   Argument ("min").type_float()
   +   Argument ("max").type_float()
+
+  + Option ("colourmap",
+            "the colourmap to apply; choices are: " + join(colourmap_choices_std, ",") +
+            ". Default is " + colourmap_choices_std[0] + ".")
+  +   Argument ("name").type_choice (colourmap_choices_cstr.data())
 
   + Option ("crosshairs",
             "draw crosshairs at specified position")
@@ -77,6 +99,8 @@ void run ()
     offset = -scale*min;
   }
 
+  int colourmap_ID = get_option_value ("colourmap", 0);
+  const auto colourmapper = ColourMap::maps[colourmap_ID];
 
   int x_axis, y_axis;
   bool x_forward, y_forward;
@@ -88,7 +112,7 @@ void run ()
   }
 
 
-  Sixel::ColourMap colourmap (100);
+  Sixel::ColourMap colourmap (colourmapper, 100);
   colourmap.set_scaling (offset, scale);
 
   const int x_dim = image_in.size(x_axis);
