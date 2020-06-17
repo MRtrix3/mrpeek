@@ -13,8 +13,8 @@ namespace MR {
       struct termios orig_termios;
     }
 
-    void enter_raw_mode () {
-
+    void enter_raw_mode ()
+    {
       std::cout << VT::CursorOff;
 
       // enable raw mode:
@@ -28,9 +28,10 @@ namespace MR {
     }
 
 
-    void exit_raw_mode () {
+    void exit_raw_mode ()
+    {
       tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
-      std::cout << VT::CursorOn;
+      std::cout << VT::CursorOn << "\n";
     }
 
 
