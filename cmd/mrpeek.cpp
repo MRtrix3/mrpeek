@@ -1,6 +1,9 @@
 #include "command.h"
 #include "image.h"
 #include "algo/loop.h"
+#include "interp/cubic.h"
+#include "filter/resize.h"
+
 #include "sixel.h"
 
 using namespace MR;
@@ -75,8 +78,11 @@ void usage ()
 
   + Option ("levels",
             "number of intensity levels in the colourmap. Default is 100.")
-  +   Argument ("number").type_integer (2);
+  +   Argument ("number").type_integer (2)
 
+  + Option   ("image_scale",
+            "scale the image size by the supplied factor")
+    + Argument ("factor").type_float();
 }
 
 
@@ -109,10 +115,13 @@ value_type percentile (Container& data, default_type percentile)
 
 void run ()
 {
-  auto image_in = Image<value_type>::open (argument[0]);
+  auto header_in = Header::open (argument[0]);
+  Image<value_type> image_in = header_in.get_image<value_type>();
 
   int axis = get_option_value ("axis", 2);
   int slice = get_option_value ("slice", image_in.size(axis)/2);
+  if (slice >= image_in.size(axis))
+    throw Exception("slice " + str(slice) + " exceeds image size (" + str(image_in.size(axis)) + ") in axis " + str(axis));
 
   int colourmap_ID = get_option_value ("colourmap", 0);
   const auto colourmapper = ColourMap::maps[colourmap_ID];
@@ -127,13 +136,35 @@ void run ()
     default: throw Exception ("invalid axis specifier");
   }
 
-  const int x_dim = image_in.size(x_axis);
-  const int y_dim = image_in.size(y_axis);
+  Header header_target (header_in);
+  auto opt = get_options ("image_scale");
+  if (opt.size()) {
+    default_type image_scale (opt[0][0]);
+    vector<default_type> new_voxel_size (1.0, 3);
+    Eigen::Vector3 original_extent;
+    for (int d = 0; d < 3; ++d) {
+      if (d != axis)
+        new_voxel_size[d] = (header_in.size(d) * header_in.spacing(d)) / std::ceil (header_in.size(d) * image_scale);
+      else
+        new_voxel_size[d] = header_in.spacing(d);
+      original_extent[d] = header_in.size(d) * header_in.spacing(d);
 
-  image_in.index(axis) = slice;
+      header_target.size(d) = std::round (header_in.size(d) * header_in.spacing(d) / new_voxel_size[d] - 0.0001); // round down at .5
+      for (size_t i = 0; i < 3; ++i)
+        header_target.transform()(i,3) += 0.5 * ((new_voxel_size[d] - header_target.spacing(d)) + (original_extent[d] - (header_target.size(d) * new_voxel_size[d]))) * header_target.transform()(i,d);
+      header_target.spacing(d) = new_voxel_size[d];
+    }
+  }
+
+  Adapter::Reslice<Interp::Cubic, Image<value_type>> image_regrid(image_in, header_target, Adapter::NoTransform, Adapter::AutoOverSample); // out_of_bounds_value
+
+  const int x_dim = image_regrid.size(x_axis);
+  const int y_dim = image_regrid.size(y_axis);
+
+  image_regrid.index(axis) = slice;
 
   value_type vmin, vmax;
-  auto opt = get_options ("intensity_range");
+  opt = get_options ("intensity_range");
   if (opt.size()) {
     vmin = opt[0][0]; vmax = opt[0][1];
   } else {
@@ -145,10 +176,10 @@ void run ()
     std::vector<value_type> currentslice (x_dim*y_dim);
     size_t k = 0;
     for (int y = 0; y < y_dim; ++y) {
-      image_in.index(y_axis) = y_forward ? y : y_dim-1-y;
+      image_regrid.index(y_axis) = y_forward ? y : y_dim-1-y;
       for (int x = 0; x < x_dim; ++x, ++k) {
-        image_in.index(x_axis) = x_forward ? x : x_dim-1-x;
-        currentslice[k] = image_in.value();
+        image_regrid.index(x_axis) = x_forward ? x : x_dim-1-x;
+        currentslice[k] = image_regrid.value();
       }
     }
     vmin = percentile(currentslice, pmin);
@@ -164,10 +195,10 @@ void run ()
   Sixel::Encoder encoder (x_dim, y_dim, colourmap);
 
   for (int y = 0; y < y_dim; ++y) {
-    image_in.index(y_axis) = y_forward ? y : y_dim-1-y;
+    image_regrid.index(y_axis) = y_forward ? y : y_dim-1-y;
     for (int x = 0; x < x_dim; ++x) {
-      image_in.index(x_axis) = x_forward ? x : x_dim-1-x;
-      encoder(x, y, image_in.value());
+      image_regrid.index(x_axis) = x_forward ? x : x_dim-1-x;
+      encoder(x, y, image_regrid.value());
     }
   }
 
