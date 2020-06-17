@@ -32,12 +32,7 @@ void usage ()
             "specity intensity scaling of data. The image intensity will be scaled as "
             "output = offset + scale*input. Default is [0 1].")
     + Argument ("offset").type_float()
-    + Argument ("scale").type_float()
-
-  + Option ("crosshairs",
-            "draw crosshairs at specified position")
-    + Argument ("x").type_integer(0)
-    + Argument ("y").type_integer();
+    + Argument ("scale").type_float();
     
 }
 
@@ -92,25 +87,35 @@ void run ()
   width = in.size(order[0]);
   height = in.size(order[1]);
   
-  // loop
-  unsigned char val[width*height*4];
-  auto loop = Loop (order);
-  for (auto l = loop (in); l; ++l){
-    gscale = in.value() * scale + offset;
-    if (gscale > 255){
-      gscale = 255;
+  std::cout.write("\033[2J", 4);
+
+  for (int new_slice = slice; new_slice<(slice+5); new_slice++){
+    in.index(axis) = new_slice;
+    //std::cout.write("\033[H", 3);
+    //std::cout.write("\033[2J", 4);
+
+    // loop
+    unsigned char val[width*height*4];
+    auto loop = Loop (order);
+    for (auto l = loop (in); l; ++l){
+      gscale = in.value() * scale + offset;
+      if (gscale > 255){
+        gscale = 255;
+      }
+      val[(in.get_index(order[0])+(height-1-in.get_index(order[1]))*width)*4+0] = (unsigned char) gscale ; //red
+      val[(in.get_index(order[0])+(height-1-in.get_index(order[1]))*width)*4+1] = (unsigned char) gscale ; //green
+      val[(in.get_index(order[0])+(height-1-in.get_index(order[1]))*width)*4+2] = (unsigned char) gscale ; //blue
+      val[(in.get_index(order[0])+(height-1-in.get_index(order[1]))*width)*4+3] = (unsigned char) gscale >0; //alpha
     }
-    val[(in.get_index(order[0])+(height-1-in.get_index(order[1]))*width)*4+0] = (unsigned char) gscale ; //red
-    val[(in.get_index(order[0])+(height-1-in.get_index(order[1]))*width)*4+1] = (unsigned char) gscale ; //green
-    val[(in.get_index(order[0])+(height-1-in.get_index(order[1]))*width)*4+2] = (unsigned char) gscale ; //blue
-    val[(in.get_index(order[0])+(height-1-in.get_index(order[1]))*width)*4+3] = (unsigned char) gscale >0; //alpha
+
+    // dither object
+    sixel_dither_new(&dither, 256, NULL);
+    sixel_output_new(&output, &write_function, NULL, NULL);
+    sixel_dither_initialize(dither, val, width, height, SIXEL_PIXELFORMAT_RGBA8888, SIXEL_LARGE_AUTO, SIXEL_REP_AUTO, SIXEL_QUALITY_AUTO);
+    sixel_encode(val, width, height, 1, dither, output);
+
+
   }
 
-  // dither object
-  sixel_dither_new(&dither, 256, NULL);
-  sixel_output_new(&output, &write_function, NULL, NULL);
-  sixel_dither_initialize(dither, val, width, height, SIXEL_PIXELFORMAT_RGBA8888, SIXEL_LARGE_AUTO, SIXEL_REP_AUTO, SIXEL_QUALITY_AUTO);
-  sixel_encode(val, width, height, 1, dither, output);
-
-  // save sixel file for checks
+  //write_function ("\033[?47l", 6, NULL);
 }
