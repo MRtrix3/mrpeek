@@ -84,7 +84,7 @@ namespace MR {
           for (int y = 0; y < y_dim; y += 6)
             out += encode (y);
 
-          out += "\033\\";
+          out += "\033\\\n";
           std::cout << out;
         }
 
