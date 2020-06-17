@@ -211,11 +211,11 @@ void run ()
 
   VT::enter_raw_mode();
   try {
+    int x, y;
 
-    while (int c = VT::read_user_input()) {
+    while (int c = VT::read_user_input(x, y)) {
       if (c == VT::Ctrl ('q'))
         break;
-      std::cerr << c << " ";
     }
     VT::exit_raw_mode();
 

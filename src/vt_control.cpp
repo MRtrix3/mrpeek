@@ -4,6 +4,7 @@
 
 #include "exception.h"
 #include "vt_control.h"
+#include "debug.h"
 
 
 namespace MR {
@@ -16,6 +17,7 @@ namespace MR {
     void enter_raw_mode ()
     {
       std::cout << CursorOff << MouseTrackingOn;
+      std::cout.flush();
 
       // enable raw mode:
       struct termios raw;
@@ -32,10 +34,11 @@ namespace MR {
     {
       tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
       std::cout << CursorOn << MouseTrackingOff << "\n";
+      std::cout.flush();
     }
 
 
-    int read_user_input ()
+    int read_user_input (int& x, int& y)
     {
       int nread;
       char c = '\0';
@@ -45,9 +48,8 @@ namespace MR {
           throw Exception ("error reading user input");
       }
 
-
       if (c == Escape) {
-        char seq[3];
+        char seq[5];
         if (read (STDIN_FILENO, &seq[0], 1) != 1) return Escape;
         if (read (STDIN_FILENO, &seq[1], 1) != 1) return Escape;
         if (seq[0] == '[') {
@@ -75,6 +77,27 @@ namespace MR {
               case 'Z': return ShiftTab;
               case 'H': return Home;
               case 'F': return End;
+              case 'M': // mouse:
+                        if (read (STDIN_FILENO, &seq[2], 1) != 1) return Escape;
+                        if (read (STDIN_FILENO, &seq[3], 1) != 1) return Escape;
+                        if (read (STDIN_FILENO, &seq[4], 1) != 1) return Escape;
+                        x = seq[3];
+                        y = seq[4];
+                        switch (seq[2]) {
+                          case ' ': return MouseLeft;
+                          case '!': return MouseMiddle;
+                          case '"': return MouseRight;
+                          case '#': return MouseRelease;
+                          case '`': return MouseWheelUp;
+                          case 'a': return MouseWheelDown;
+                          case '@': return MouseMoveLeft;
+                          case 'A': return MouseMoveMiddle;
+                          case 'B': return MouseMoveRight;
+                          default: return Escape;
+                        }
+
+
+
               default: return Escape;
             }
           }
@@ -90,7 +113,7 @@ namespace MR {
       }
 
       return c;
-      }
+    }
 
 
   }

@@ -25,6 +25,15 @@ namespace MR {
     constexpr int Home = 0x0110;
     constexpr int End = 0x0111;
     constexpr int Delete = 0x0112;
+    constexpr int MouseLeft = 0x0201;
+    constexpr int MouseMiddle = 0x0202;
+    constexpr int MouseRight = 0x0203;
+    constexpr int MouseWheelUp = 0x0204;
+    constexpr int MouseWheelDown = 0x0205;
+    constexpr int MouseRelease = 0x0206;
+    constexpr int MouseMoveLeft = 0x0211;
+    constexpr int MouseMoveMiddle = 0x0212;
+    constexpr int MouseMoveRight = 0x0213;
 
     constexpr inline int Ctrl (int c) { return c & 0x1F; }
 
@@ -32,7 +41,7 @@ namespace MR {
 
     void enter_raw_mode();
     void exit_raw_mode();
-    int read_user_input();
+    int read_user_input (int& x, int& y);
 
 
   }
