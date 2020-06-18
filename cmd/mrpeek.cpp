@@ -254,8 +254,10 @@ void run ()
       event = VT::read_user_input(x, y);
 
       switch (event) {
-        case VT::Up: slice = std::min (slice+1, int(image.size(axis))); break;
-        case VT::Down: slice = std::max (slice-1, 0); break;
+        case VT::Up:
+        case VT::MouseWheelUp: slice = std::min (slice+1, int(image.size(axis))); break;
+        case VT::Down:
+        case VT::MouseWheelDown: slice = std::max (slice-1, 0); break;
         case 'a': axis = 2; std::cout << VT::ClearScreen; break;
         case 's': axis = 0; std::cout << VT::ClearScreen; break;
         case 'c': axis = 1; std::cout << VT::ClearScreen; break;
@@ -263,7 +265,7 @@ void run ()
         case '-': image_scale /= 1.1; std::cout << VT::ClearScreen; break;
         case VT::Escape: colourmap.invalidate_scaling(); break;
 
-        default: break;
+        default: std::cerr << event << "\n";
       }
 
     } while (!(event == 'q' || event == 'Q' || event == VT::Ctrl('c') || event == VT::Ctrl('q')));
