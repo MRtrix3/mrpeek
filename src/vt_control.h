@@ -9,6 +9,7 @@ namespace MR {
     constexpr const char* RestoreScreen = "\033[?47l";
     constexpr const char* CursorHome = "\033[H";
     constexpr const char* ClearLine = "\033[2K";
+    constexpr const char* CarriageReturn = "\r";
 
     constexpr const char* SixelStart = "\033Pq$";
     constexpr const char* SixelStop = "\033\\";

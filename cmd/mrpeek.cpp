@@ -122,7 +122,6 @@ int colourmap_ID = 0;
 int levels = 100;
 value_type image_scale = 1.0;
 int x_axis, y_axis, slice_axis = 2;
-bool x_forward, y_forward;
 value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX;
 bool crosshair = true;
 vector<int> focus (3, 0);  // relative to original image grid
@@ -132,9 +131,9 @@ vector<int> focus (3, 0);  // relative to original image grid
 inline void set_axes ()
 {
   switch (slice_axis) {
-    case 0: x_axis = 1; y_axis = 2; x_forward = false; y_forward = false; break;
-    case 1: x_axis = 0; y_axis = 2; x_forward = false; y_forward = false; break;
-    case 2: x_axis = 0; y_axis = 1; x_forward = false; y_forward = false; break;
+    case 0: x_axis = 1; y_axis = 2; break;
+    case 1: x_axis = 0; y_axis = 2; break;
+    case 2: x_axis = 0; y_axis = 1; break;
     default: throw Exception ("invalid axis specifier");
   }
 }
@@ -147,13 +146,14 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
 
   Header header_target (image);
   float new_voxel_size = 1.0;
+  float scale = std::min (std::min (image.spacing(0), image.spacing(1)), image.spacing(2)) / image_scale;
 
   default_type original_extent;
   for (int d = 0; d < 3; ++d) {
     if (d == slice_axis)
       new_voxel_size = image.spacing(d);
     else
-      new_voxel_size = std::min (std::min (image.spacing(0), image.spacing(1)), image.spacing(2)) / image_scale;
+      new_voxel_size = scale;
 
     original_extent = image.size(d) * image.spacing(d);
 
@@ -167,6 +167,12 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
 
   const int x_dim = image_regrid.size(x_axis);
   const int y_dim = image_regrid.size(y_axis);
+
+  for (int n = 0; n < 3; ++n) {
+    if (focus[n] < 0) focus[n] = 0;
+    if (focus[n] >= image.size(n)) focus[n] = image.size(n)-1;
+  }
+
 
   image_regrid.index(slice_axis) = focus[slice_axis];
 
@@ -188,15 +194,15 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   Sixel::Encoder encoder (x_dim, y_dim, colourmap);
 
   for (int y = 0; y < y_dim; ++y) {
-    image_regrid.index(y_axis) = y_forward ? y : y_dim-1-y;
+    image_regrid.index(y_axis) = y_dim-1-y;
     for (int x = 0; x < x_dim; ++x) {
-      image_regrid.index(x_axis) = x_forward ? x : x_dim-1-x;
+      image_regrid.index(x_axis) = x_dim-1-x;
       encoder(x, y, image_regrid.value());
     }
   }
 
    if (crosshair)
-    encoder.draw_crosshairs (std::round(image_scale * (focus[x_axis] + 0.5)), std::round(image_scale * (focus[y_axis] + 0.5)));
+    encoder.draw_crosshairs (std::round(scale * (x_dim-focus[x_axis] - 0.5)), std::round(scale * (y_dim-focus[y_axis] - 0.5)));
 
 
   // encode buffer and print out:
@@ -205,7 +211,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   image.index(0) = focus[0];
   image.index(1) = focus[1];
   image.index(2) = focus[2];
-  std::cout << VT::ClearLine << "[ " << focus[0] << " " << focus[1] << " " << focus[2] << " ";
+  std::cout << VT::CarriageReturn << VT::ClearLine << "[ " << focus[0] << " " << focus[1] << " " << focus[2] << " ";
   for (size_t n = 3; n < image.ndim(); ++n)
     std::cout << image.index(n) << " ";
   std::cout << "]: " << image.value();
@@ -249,8 +255,8 @@ void run ()
 
   opt = get_options ("crosshairs");
   if (opt.size()) {
-    focus[x_axis] = x_forward ? (int) opt[0][0] : image.size(x_axis)-1-(int) opt[0][0];
-    focus[y_axis] = y_forward ? (int) opt[0][1] : image.size(y_axis)-1-(int) opt[0][1];
+    focus[x_axis] = opt[0][0];
+    focus[y_axis] = opt[0][1];
   }
 
   image_scale = get_option_value ("image_scale", image_scale);
@@ -270,9 +276,9 @@ void run ()
 
       switch (event) {
         case VT::Up:
-        case VT::MouseWheelUp: focus[slice_axis] = std::min (focus[slice_axis]+1, int(image.size(slice_axis))); break;
+        case VT::MouseWheelUp: ++focus[slice_axis]; break;
         case VT::Down:
-        case VT::MouseWheelDown: focus[slice_axis] = std::max (focus[slice_axis]-1, 0); break;
+        case VT::MouseWheelDown: --focus[slice_axis]; break;
         case VT::Left: if (image.ndim() > 3) --image.index(3); if (image.index(3) < 0) image.index(3) = image.size(3)-1; break;
         case VT::Right: if (image.ndim() > 3) ++image.index(3); if (image.index(3) >= image.size(3)) image.index(3) = 0; break;
         case 'f': crosshair = !crosshair; std::cout << VT::ClearScreen; break;
@@ -281,7 +287,7 @@ void run ()
         case 'c': slice_axis = 1; std::cout << VT::ClearScreen; break;
         case '+': image_scale *= 1.1; std::cout << VT::ClearScreen; break;
         case '-': image_scale /= 1.1; std::cout << VT::ClearScreen; break;
-        case VT::MouseMoveLeft: focus[x_axis] += x-xp; focus[y_axis] += y-yp; break;
+        case VT::MouseMoveLeft: focus[x_axis] += xp-x; focus[y_axis] += yp-y; break;
         case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp); break;
         case VT::Home: colourmap.invalidate_scaling(); break;
 
