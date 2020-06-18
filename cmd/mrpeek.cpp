@@ -271,6 +271,7 @@ void run ()
         case 'c': axis = 1; slice = focus[axis]; std::cout << VT::ClearScreen; break;
         case '+': image_scale *= 1.1; std::cout << VT::ClearScreen; break;
         case '-': image_scale /= 1.1; std::cout << VT::ClearScreen; break;
+        case VT::MouseMoveLeft: focus[0] += x-xp; focus[1] += y-yp; break;
         case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp); break;
         case VT::Home: colourmap.invalidate_scaling(); break;
 
