@@ -267,12 +267,22 @@ void run ()
   try {
     std::cout << VT::ClearScreen;
 
-    int event, x, y, xp = 0, yp = 0;
-    do {
-      std::cout << VT::CursorHome;
-      display (image, colourmap);
+    int event = 0;
+    int x, y, xp = 0, yp = 0;
+    bool need_update = true;
 
-      event = VT::read_user_input(x, y);
+    do {
+
+      while ((event = VT::read_user_input(x, y)) == 0) {
+        if (need_update) {
+          std::cout << VT::CursorHome;
+          display (image, colourmap);
+          need_update = false;
+        }
+        std::this_thread::sleep_for (std::chrono::milliseconds(10));
+      }
+
+      need_update = true;
 
       switch (event) {
         case VT::Up:
@@ -294,7 +304,7 @@ void run ()
         case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp); break;
         case VT::Home: colourmap.invalidate_scaling(); break;
 
-        default: break;
+        default: need_update = false; break;
       }
       xp = x;
       yp = y;
