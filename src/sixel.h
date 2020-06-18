@@ -54,7 +54,7 @@ namespace MR {
           _offset = mid - 0.5f*_scale;
         }
         const float offset () const { return _offset; }
-        const float scale () const { return _scale; }
+        const float scale () const { return _scale/num_colours; }
 
       private:
         int num_colours;

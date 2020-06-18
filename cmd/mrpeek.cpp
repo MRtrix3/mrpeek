@@ -367,8 +367,11 @@ void run ()
                   if (event >= '1' && event <= '9') {
                     int idx = event - '1';
                     if (idx < colourmap_choices_std.size()) {
+                      float offset = colourmap.offset();
+                      float scale = colourmap.scale();
                       colourmap_ID = idx;
                       colourmap = Sixel::ColourMap (ColourMap::maps[colourmap_ID], levels);
+                      colourmap.set_scaling (offset, scale);
                       break;
                     }
                   }
