@@ -115,22 +115,24 @@ value_type percentile (Container& data, default_type percentile)
 
 
 
-void run ()
+
+// Global variables to hold slide dislay parameters:
+// These will need to be moved into a struct/class eventually...
+int colourmap_ID = 0;
+int levels = 100;
+value_type image_scale = 1.0;
+int x_axis, y_axis, axis = 2;
+bool x_forward, y_forward;
+int slice = 0;
+value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX;
+bool crosshair = false;
+vector<int> focus;  // relative to original image grid
+
+
+
+
+void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
 {
-  auto header_in = Header::open (argument[0]);
-  Image<value_type> image_in = header_in.get_image<value_type>();
-
-  int axis = get_option_value ("axis", 2);
-  int slice = get_option_value ("slice", image_in.size(axis)/2);
-  if (slice >= image_in.size(axis))
-    throw Exception("slice " + str(slice) + " exceeds image size (" + str(image_in.size(axis)) + ") in axis " + str(axis));
-
-  int colourmap_ID = get_option_value ("colourmap", 0);
-  const auto colourmapper = ColourMap::maps[colourmap_ID];
-  int levels = get_option_value ("levels", 100);
-
-  int x_axis, y_axis;
-  bool x_forward, y_forward;
   switch (axis) {
     case 0: x_axis = 1; y_axis = 2; x_forward = false; y_forward = false; break;
     case 1: x_axis = 0; y_axis = 2; x_forward = false; y_forward = false; break;
@@ -138,143 +140,152 @@ void run ()
     default: throw Exception ("invalid axis specifier");
   }
 
-  Header header_target (header_in);
-  default_type image_scale = 1.0;
-  default_type original_extent;
-  auto opt = get_options ("image_scale");
-  if (opt.size()) {
-    image_scale = opt[0][0];
-    vector<default_type> new_voxel_size (3, 1.0);
-    for (int d = 0; d < 3; ++d) {
-      if (d != axis)
-        new_voxel_size[d] = (header_in.size(d) * header_in.spacing(d)) / std::ceil (header_in.size(d) * image_scale);
-      else
-        new_voxel_size[d] = header_in.spacing(d);
-      original_extent = header_in.size(d) * header_in.spacing(d);
+  if (!focus.size()) {
+    focus.resize(3);
+    focus[x_axis] = x_forward ? image.size(x_axis)/2 : image.size(x_axis)-1-image.size(x_axis)/2;
+    focus[y_axis] = y_forward ? image.size(y_axis)/2 : image.size(y_axis)-1-image.size(y_axis)/2;
+  }
+  focus[axis] = slice;
 
-      header_target.size(d) = std::round (header_in.size(d) * header_in.spacing(d) / new_voxel_size[d] - 0.0001); // round down at .5
-      for (size_t i = 0; i < 3; ++i)
-        header_target.transform()(i,3) += 0.5 * ((new_voxel_size[d] - header_target.spacing(d)) + (original_extent - (header_target.size(d) * new_voxel_size[d]))) * header_target.transform()(i,d);
-      header_target.spacing(d) = new_voxel_size[d];
-    }
+  Header header_target (image);
+
+  default_type original_extent;
+  vector<default_type> new_voxel_size (3, 1.0);
+  for (int d = 0; d < 3; ++d) {
+    if (d != axis)
+      new_voxel_size[d] = (image.size(d) * image.spacing(d)) / std::ceil (image.size(d) * image_scale);
+    else
+      new_voxel_size[d] = image.spacing(d);
+    original_extent = image.size(d) * image.spacing(d);
+
+    header_target.size(d) = std::round (image.size(d) * image.spacing(d) / new_voxel_size[d] - 0.0001); // round down at .5
+    for (size_t i = 0; i < 3; ++i)
+      header_target.transform()(i,3) += 0.5 * ((new_voxel_size[d] - header_target.spacing(d)) + (original_extent - (header_target.size(d) * new_voxel_size[d]))) * header_target.transform()(i,d);
+    header_target.spacing(d) = new_voxel_size[d];
   }
 
-  Adapter::Reslice<Interp::Nearest, Image<value_type>> image_regrid(image_in, header_target, Adapter::NoTransform, Adapter::AutoOverSample); // out_of_bounds_value
+  Adapter::Reslice<Interp::Nearest, Image<value_type>> image_regrid(image, header_target, Adapter::NoTransform, Adapter::AutoOverSample); // out_of_bounds_value
 
   const int x_dim = image_regrid.size(x_axis);
   const int y_dim = image_regrid.size(y_axis);
 
   image_regrid.index(axis) = slice;
 
-  value_type vmin, vmax;
-  opt = get_options ("intensity_range");
-  if (opt.size()) {
-    vmin = opt[0][0]; vmax = opt[0][1];
-  } else {
-    float pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX;
-    opt = get_options ("percentile_range");
-    if (opt.size()) {
-      pmin = opt[0][0]; pmax = opt[0][1];
-    }
+
+  if (!colourmap.scaling_set()) {
+    // reset scaling:
+
     std::vector<value_type> currentslice (x_dim*y_dim);
     size_t k = 0;
-    for (int y = 0; y < y_dim; ++y) {
-      image_regrid.index(y_axis) = y_forward ? y : y_dim-1-y;
-      for (int x = 0; x < x_dim; ++x, ++k) {
-        image_regrid.index(x_axis) = x_forward ? x : x_dim-1-x;
-        currentslice[k] = image_regrid.value();
-      }
-    }
-    vmin = percentile(currentslice, pmin);
-    vmax = percentile(currentslice, pmax);
-    INFO("Selected intensity range: " + str(vmin) + " - " +str(vmax));
-  }
+    for (auto l = Loop ({0,1})(image_regrid); l; ++l)
+      currentslice[k++] = image_regrid.value();
 
-  value_type scale = 1.0 / (vmax - vmin);
-  value_type offset = -scale*vmin;
-  Sixel::ColourMap colourmap (colourmapper, levels);
-  colourmap.set_scaling (offset, scale);
+    value_type vmin = percentile(currentslice, pmin);
+    value_type vmax = percentile(currentslice, pmax);
+    colourmap.set_scaling_min_max (vmin, vmax);
+    INFO("reset intensity range to " + str(vmin) + " - " +str(vmax));
+  }
 
   Sixel::Encoder encoder (x_dim, y_dim, colourmap);
 
-  int crosshairs_x, crosshairs_y;  // relative to original image grid
-  opt = get_options ("crosshairs");
-  if (opt.size()){
-    const int x = opt[0][0], y = opt[0][1];
-    crosshairs_x = x_forward ? x : image_in.size(x_axis)-1-x;
-    crosshairs_y = y_forward ? y : image_in.size(y_axis)-1-y;
+  for (int y = 0; y < y_dim; ++y) {
+    image_regrid.index(y_axis) = y_forward ? y : y_dim-1-y;
+    for (int x = 0; x < x_dim; ++x) {
+      image_regrid.index(x_axis) = x_forward ? x : x_dim-1-x;
+      encoder(x, y, image_regrid.value());
+    }
   }
 
+   if (crosshair)
+    encoder.draw_crosshairs (std::round(image_scale * (focus[x_axis] + 0.5)), std::round(image_scale * (focus[y_axis] + 0.5)));
 
-  struct termios old_termios;
-  struct termios new_termios;
-  tcgetattr(STDIN_FILENO, &old_termios);
-  (void) memcpy(&new_termios, &old_termios, sizeof(old_termios));
-  new_termios.c_iflag &= ~(ICRNL | IXON);
-  new_termios.c_oflag &= ~(OPOST);
-  new_termios.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+
+  // encode buffer and print out:
+  encoder.write();
+
+  std::cout << VT::ClearLine << "slice: " << slice << "\n";
+
+}
+
+
+
+
+
+void run ()
+{
+  auto image = Image<value_type>::open (argument[0]);
+
+  axis = get_option_value ("axis", axis);
+  slice = get_option_value ("slice", image.size(axis)/2);
+
+  if (slice >= image.size(axis))
+    throw Exception("slice " + str(slice) + " exceeds image size (" + str(image.size(axis)) + ") in axis " + str(axis));
+
+  colourmap_ID = get_option_value ("colourmap", colourmap_ID);
+  levels = get_option_value ("levels", levels);
+
+  Sixel::ColourMap colourmap (ColourMap::maps[colourmap_ID], levels);
+
+  auto opt = get_options ("intensity_range");
+  if (opt.size()) {
+    colourmap.set_scaling_min_max (opt[0][0], opt[0][1]);
+  }
+
+  opt = get_options ("percentile_range");
+  if (opt.size()) {
+    pmin = opt[0][0];
+    pmax = opt[0][1];
+  }
+
+  opt = get_options ("crosshairs");
+  if (opt.size()) {
+    crosshair = true;
+    focus.resize(3);
+    focus[x_axis] = x_forward ? (int) opt[0][0] : image.size(x_axis)-1-(int) opt[0][0];
+    focus[y_axis] = y_forward ? (int) opt[0][1] : image.size(y_axis)-1-(int) opt[0][1];
+  }
+
+  image_scale = get_option_value ("image_scale", image_scale);
+
 
   // start loop
-  std::cout.write("\033[2J", 4);
-  int slice_curr = slice;
-  while (true) {
-    image_regrid.index(axis) = slice_curr;
-    std::cout.write("\033[H", 3);
+  VT::enter_raw_mode();
+  try {
+    std::cout << VT::ClearScreen;
 
-    for (int y = 0; y < y_dim; ++y) {
-      image_regrid.index(y_axis) = y_forward ? y : y_dim-1-y;
-      for (int x = 0; x < x_dim; ++x) {
-        image_regrid.index(x_axis) = x_forward ? x : x_dim-1-x;
-        encoder(x, y, image_regrid.value());
+    int event, x, y, xp = 0, yp = 0;
+    do {
+      std::cout << VT::CursorHome;
+      display (image, colourmap);
+
+      event = VT::read_user_input(x, y);
+
+      switch (event) {
+        case VT::Up:
+        case VT::MouseWheelUp: slice = std::min (slice+1, int(image.size(axis))); break;
+        case VT::Down:
+        case VT::MouseWheelDown: slice = std::max (slice-1, 0); break;
+        case 'f': crosshair = !crosshair; std::cout << VT::ClearScreen; break;
+        case 'a': axis = 2; slice = focus[axis]; std::cout << VT::ClearScreen; break;
+        case 's': axis = 0; slice = focus[axis]; std::cout << VT::ClearScreen; break;
+        case 'c': axis = 1; slice = focus[axis]; std::cout << VT::ClearScreen; break;
+        case '+': image_scale *= 1.1; std::cout << VT::ClearScreen; break;
+        case '-': image_scale /= 1.1; std::cout << VT::ClearScreen; break;
+        case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp); break;
+        case VT::Home: colourmap.invalidate_scaling(); break;
+
+        default: break;
       }
-    }
+      xp = x;
+      yp = y;
 
-    if (opt.size()) {
-      encoder.draw_crosshairs (std::round(image_scale * (crosshairs_x + 0.5)), std::round(image_scale * (crosshairs_y + 0.5)));
-    }
+    } while (!(event == 'q' || event == 'Q' || event == VT::Ctrl('c') || event == VT::Ctrl('q')));
+    VT::exit_raw_mode();
 
-    // encode buffer and print out:
-    encoder.write();
-
-    // enter cbreak mode
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &new_termios);
-
-    // read input
-    char c;
-    std::cin.get(c);
-    if (c == 27) { // escape
-      std::cin.get(c);
-      if (c == 91) {
-        std::cin.get(c);
-        switch (c) {
-          case 53:
-            std::cin.get(c);
-            if (c == 126){
-              slice_curr++; //page up
-              break;
-            }
-            break;
-          case 54:
-            std::cin.get(c);
-            if (c == 126){
-              slice_curr--; //page down
-              break;
-            }
-            break;
-          case 65: crosshairs_y--; break; // up
-          case 66: crosshairs_y++; break; // down
-          case 67: crosshairs_x++; break; // right
-          case 68: crosshairs_x--; break; // left
-        }
-      }
-    }
-    else if (c == 'q' || c == 'Q')
-      break;
-
-    // back to normal mode
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &old_termios);
   }
-  // make sure we end in non-cbreak mode
-  tcsetattr(STDIN_FILENO, TCSAFLUSH, &old_termios);
+  catch (Exception&) {
+    VT::exit_raw_mode();
+    throw;
+  }
 
 }

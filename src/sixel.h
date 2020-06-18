@@ -2,17 +2,21 @@
 #define __SIXEL_H__
 
 #include "colourmap.h"
+#include "vt_control.h"
 
 
 namespace MR {
   namespace Sixel {
 
+    constexpr float BrightnessIncrement = 0.03;
+    constexpr float ContrastIncrement = 0.03;
+
     class ColourMap {
       public:
         ColourMap (const ::MR::ColourMap::Entry& colourmapper, int number_colours) :
           num_colours (number_colours),
-          _offset(0.0),
-          _scale (1.0) {
+          _offset(NaN),
+          _scale (NaN) {
             const auto& map_fn = colourmapper.basic_mapping;
             for (int n = 0; n <= num_colours; ++n) {
               const Eigen::Array3f colour = 100.0*map_fn (float(n)/num_colours);
@@ -30,6 +34,7 @@ namespace MR {
         const int range () const { return num_colours; }
         const int crosshairs() const { return num_colours+1; }
 
+
         // apply rescaling from floating-point value to clamped rescaled
         // integer:
         int rescale (float value) const {
@@ -38,7 +43,19 @@ namespace MR {
         }
 
         // set offset * scale parameters to adjust brightness / contrast:
+        bool scaling_set () const { return std::isfinite (_offset) && std::isfinite (_scale); }
+        void invalidate_scaling () { _offset = _scale = NaN; }
         void set_scaling (float offset, float scale) { _offset = offset; _scale = scale*num_colours; }
+        void set_scaling_min_max (float vmin, float vmax) {
+          float s = 1.0f / (vmax - vmin);
+          set_scaling (-vmin/s, s);
+        }
+        void update_scaling (int x, int y) {
+          float mid = _offset + 0.5f*_scale;
+          mid += BrightnessIncrement * y / _scale;
+          _scale = std::exp (std::log(_scale) + ContrastIncrement * x);
+          _offset = mid - 0.5f*_scale;
+        }
         const float offset () const { return _offset; }
         const float scale () const { return _scale; }
 
@@ -79,13 +96,14 @@ namespace MR {
 
         // once slice is fully specified, encode and write to stdout:
         void write () {
-          std::string out = "\033Pq$" + colourmap.spec();
+          std::string out = VT::SixelStart + colourmap.spec();
 
           for (int y = 0; y < y_dim; y += 6)
             out += encode (y);
 
-          out += "\033\\";
+          out += VT::SixelStop;
           std::cout << out;
+          std::cout.flush();
         }
 
       private:
