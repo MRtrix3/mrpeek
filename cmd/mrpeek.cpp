@@ -121,10 +121,10 @@ value_type percentile (Container& data, default_type percentile)
 int colourmap_ID = 0;
 int levels = 100;
 value_type image_scale = 1.0;
-int axis = 2;
+int x_axis, y_axis, axis = 2;
+bool x_forward, y_forward;
 int slice = 0;
 value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX;
-int crosshairs_x, crosshairs_y;  // relative to original image grid
 bool crosshair = false;
 vector<int> focus;  // relative to original image grid
 
@@ -133,8 +133,6 @@ vector<int> focus;  // relative to original image grid
 
 void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
 {
-  int x_axis, y_axis;
-  bool x_forward, y_forward;
   switch (axis) {
     case 0: x_axis = 1; y_axis = 2; x_forward = false; y_forward = false; break;
     case 1: x_axis = 0; y_axis = 2; x_forward = false; y_forward = false; break;
@@ -144,15 +142,10 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
 
   if (!focus.size()) {
     focus.resize(3);
-    if (crosshair) {
-      focus[x_axis] = x_forward ? crosshairs_x : image.size(x_axis)-1-crosshairs_x;
-      focus[y_axis] = y_forward ? crosshairs_y : image.size(y_axis)-1-crosshairs_y;
-    } else {
-      focus[x_axis] = x_forward ? image.size(x_axis)/2 : image.size(x_axis)-1-image.size(x_axis)/2;
-      focus[y_axis] = y_forward ? image.size(y_axis)/2 : image.size(y_axis)-1-image.size(y_axis)/2;
-    }
-    focus[axis] = slice;
+    focus[x_axis] = x_forward ? image.size(x_axis)/2 : image.size(x_axis)-1-image.size(x_axis)/2;
+    focus[y_axis] = y_forward ? image.size(y_axis)/2 : image.size(y_axis)-1-image.size(y_axis)/2;
   }
+  focus[axis] = slice;
 
   Header header_target (image);
 
@@ -247,8 +240,9 @@ void run ()
   opt = get_options ("crosshairs");
   if (opt.size()) {
     crosshair = true;
-    crosshairs_x = opt[0][0];
-    crosshairs_y = opt[0][1];
+    focus.resize(3);
+    focus[x_axis] = x_forward ? (int) opt[0][0] : image.size(x_axis)-1-(int) opt[0][0];
+    focus[y_axis] = y_forward ? (int) opt[0][1] : image.size(y_axis)-1-(int) opt[0][1];
   }
 
   image_scale = get_option_value ("image_scale", image_scale);
@@ -271,9 +265,10 @@ void run ()
         case VT::MouseWheelUp: slice = std::min (slice+1, int(image.size(axis))); break;
         case VT::Down:
         case VT::MouseWheelDown: slice = std::max (slice-1, 0); break;
-        case 'a': axis = 2; std::cout << VT::ClearScreen; break;
-        case 's': axis = 0; std::cout << VT::ClearScreen; break;
-        case 'c': axis = 1; std::cout << VT::ClearScreen; break;
+        case 'f': crosshair = !crosshair; std::cout << VT::ClearScreen; break;
+        case 'a': axis = 2; slice = focus[axis]; std::cout << VT::ClearScreen; break;
+        case 's': axis = 0; slice = focus[axis]; std::cout << VT::ClearScreen; break;
+        case 'c': axis = 1; slice = focus[axis]; std::cout << VT::ClearScreen; break;
         case '+': image_scale *= 1.1; std::cout << VT::ClearScreen; break;
         case '-': image_scale /= 1.1; std::cout << VT::ClearScreen; break;
         case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp); break;
