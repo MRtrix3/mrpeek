@@ -12,23 +12,28 @@ First, you'll need a terminal that supports [sixel encoding](https://github.com/
 
 Next, you need to build `mrpeek` from source, following these instructions:
 
-1. [install MRtrix3 from source](https://mrtrix.readthedocs.io/en/latest/installation/build_from_source.html) (you will need `zlib` and Eigen 3.3):
-```
-git clone https://github.com/MRtrix3/mrtrix3.git
-cd mrtrix3
-./configure -noshared -nogui
-```
-2. clone this repo and [set it up as a module](https://mrtrix.readthedocs.io/en/latest/tips_and_tricks/external_modules.html):
-```
-git clone https://github.com/MRtrix3/mrpeek.git
-cd mrpeek
-../build
-```
-3. try it out:
-```
-bin/mrpeek /path/to/image.nii
-```
+1. [install MRtrix3 from source](https://mrtrix.readthedocs.io/en/latest/installation/build_from_source.html) (you will need `zlib` and [Eigen 3.3](http://eigen.tuxfamily.org/)):
 
+   `mrpeek` is built an [external module for MRtrix3](https://mrtrix.readthedocs.io/en/latest/tips_and_tricks/external_modules.html). If you already have an existing _source_ installation, feel free to use that and skip this step (note: binary installations won't work for this). Otherwise, if all you need is to compile `mrpeek`, the following is probably the simplest solution: it will check out the _MRtrix3_ codebase and configure it for command-line only use (avoiding the Qt & OpenGL checks), without generating the _MRtrix3_ shared library (which will make the resulting executable easier to relocate wherever you need to). 
+   ```
+   git clone https://github.com/MRtrix3/mrtrix3.git
+   cd mrtrix3
+   ./configure -noshared -nogui
+   ```
+   Note that there is no need to actually build all of _MRtrix3_ if you don't want to: the next stage will compile what needs to be compiled for `mrpeek` itself.  
+
+2. clone this repo and [build it as a module](https://mrtrix.readthedocs.io/en/latest/tips_and_tricks/external_modules.html):
+   ```
+   git clone https://github.com/MRtrix3/mrpeek.git
+   cd mrpeek
+   ../build
+   ```
+   
+3. try it out:
+   ```
+   bin/mrpeek /path/to/image.nii
+   ```
+   At this point, you may want to include the `bin/` folder in your `PATH`. Please follow your system's standard procedures for this.
 
 ## Working on the code
 
