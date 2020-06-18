@@ -85,7 +85,10 @@ void usage ()
 
   + Option ("scale_image",
             "scale the image size by the supplied factor")
-    + Argument ("factor").type_float();
+    + Argument ("factor").type_float()
+
+  + Option ("noninteractive",
+            "disable interactive mode");
 }
 
 
@@ -209,10 +212,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   image.index(0) = focus[0];
   image.index(1) = focus[1];
   image.index(2) = focus[2];
-  std::cout 
-    
-    
-    VT::CarriageReturn << VT::ClearLine << "[ " << focus[0] << " " << focus[1] << " " << focus[2] << " ";
+  std::cout << VT::CarriageReturn << VT::ClearLine << "[ " << focus[0] << " " << focus[1] << " " << focus[2] << " ";
   for (size_t n = 3; n < image.ndim(); ++n)
     std::cout << image.index(n) << " ";
   std::cout << "]: " << image.value();
@@ -286,7 +286,6 @@ void run ()
     pmin = opt[0][0];
     pmax = opt[0][1];
   }
-  INFO(str(scale_image));
 
   opt = get_options ("crosshairs");
   if (opt.size()) {
@@ -305,6 +304,12 @@ void run ()
   if (scale_image <= 0)
     throw Exception ("scale_image value needs to be positive");
   INFO("scale_image: " + str(scale_image));
+
+  //CONF option: MRPeekInteractive
+  if (get_options ("noninteractive").size() or !MR::File::Config::get_bool ("MRPeekInteractive", true)) {
+    display (image, colourmap);
+    return;
+  }
 
 
   // start loop
