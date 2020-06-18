@@ -1,6 +1,7 @@
 #include <termios.h>
 
 #include "command.h"
+#include "file/config.h"
 #include "image.h"
 #include "algo/loop.h"
 #include "interp/nearest.h"
@@ -90,15 +91,16 @@ void usage ()
             "number of intensity levels in the colourmap. Default is 64.")
   +   Argument ("number").type_integer (2)
 
-  + Option   ("image_scale",
+  + Option ("scale_image",
             "scale the image size by the supplied factor")
-    + Argument ("factor").type_float();
+    + Argument ("factor").type_float()
+
+  + Option ("noninteractive",
+            "disable interactive mode");
 }
 
 
-
 using value_type = float;
-
 
 // calculate percentile of a list of numbers
 // implementation based on `mrthreshold` - can be merged with Math::median in due course
@@ -128,9 +130,8 @@ value_type percentile (Container& data, default_type percentile)
 // These will need to be moved into a struct/class eventually...
 int colourmap_ID = 0;
 int levels = 64;
-value_type image_scale = 1.0;
 int x_axis, y_axis, slice_axis = 2;
-value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX;
+value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX, scale_image = 1.0;
 bool crosshair = true;
 vector<int> focus (3, 0);  // relative to original image grid
 
@@ -154,7 +155,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
 
   Header header_target (image);
   float new_voxel_size = 1.0;
-  float scale = std::min (std::min (image.spacing(0), image.spacing(1)), image.spacing(2)) / image_scale;
+  float scale = std::min (std::min (image.spacing(0), image.spacing(1)), image.spacing(2)) / scale_image;
 
   default_type original_extent;
   for (int d = 0; d < 3; ++d) {
@@ -210,7 +211,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   }
 
    if (crosshair)
-    encoder.draw_crosshairs (std::round(x_dim - image_scale * (focus[x_axis] - 0.5)), std::round(y_dim - image_scale * (focus[y_axis] - 0.5)));
+    encoder.draw_crosshairs (std::round(x_dim - scale_image * (focus[x_axis] - 0.5)), std::round(y_dim - scale_image * (focus[y_axis] - 0.5)));
 
 
   // encode buffer and print out:
@@ -307,7 +308,17 @@ void run ()
     }
   }
 
-  image_scale = get_option_value ("image_scale", image_scale);
+  //CONF option: MRPeekScaleImage
+  scale_image = get_option_value ("scale_image", MR::File::Config::get_float ("MRPeekScaleImage", scale_image));
+  if (scale_image <= 0)
+    throw Exception ("scale_image value needs to be positive");
+  INFO("scale_image: " + str(scale_image));
+
+  //CONF option: MRPeekInteractive
+  if (get_options ("noninteractive").size() or !MR::File::Config::get_bool ("MRPeekInteractive", true)) {
+    display (image, colourmap);
+    return;
+  }
 
 
   // start loop
@@ -345,8 +356,8 @@ void run ()
         case 'c': slice_axis = 1; std::cout << VT::ClearScreen; break;
         case 'r': focus[x_axis] = std::round (image.size(x_axis)/2); focus[x_axis] = std::round (image.size(x_axis)/2);
                   focus[slice_axis] = std::round (image.size(slice_axis)/2); std::cout << VT::ClearScreen; break;
-        case '+': image_scale *= 1.1; std::cout << VT::ClearScreen; break;
-        case '-': image_scale /= 1.1; std::cout << VT::ClearScreen; break;
+        case '+': scale_image *= 1.1; std::cout << VT::ClearScreen; break;
+        case '-': scale_image /= 1.1; std::cout << VT::ClearScreen; break;
         case VT::MouseMoveLeft: focus[x_axis] += xp-x; focus[y_axis] += yp-y; break;
         case VT::Escape: colourmap.invalidate_scaling(); break;
         case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp); break;
