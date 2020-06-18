@@ -74,9 +74,9 @@ void usage ()
   +   Argument ("name").type_choice (colourmap_choices_cstr.data())
 
   + Option ("crosshairs",
-            "draw crosshairs at specified position")
-  +   Argument ("x").type_integer(0)
-  +   Argument ("y").type_integer(0)
+            "draw crosshairs at specified position. Set to negative position to hide.")
+  +   Argument ("x").type_integer()
+  +   Argument ("y").type_integer()
 
   + Option ("levels",
             "number of intensity levels in the colourmap. Default is 64.")
@@ -223,6 +223,39 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
 
 
 
+void show_help ()
+{
+  std::cout << VT::ClearScreen;
+  int row = 2;
+  VT::position_cursor_at (row++, 2); std::cout << "mrpeek key bindings:";
+  row++;
+  VT::position_cursor_at (row++, 4); std::cout << "up/down               previous/next slice";
+  VT::position_cursor_at (row++, 4); std::cout << "left/right            previous/next volume";
+  VT::position_cursor_at (row++, 4); std::cout << "a / s / c             axial / sagittal / coronal projection";
+  VT::position_cursor_at (row++, 4); std::cout << "- / +                 zoom out / in";
+  VT::position_cursor_at (row++, 4); std::cout << "f                     show / hide crosshairs";
+  VT::position_cursor_at (row++, 4); std::cout << "r                     reset focus";
+  VT::position_cursor_at (row++, 4); std::cout << "left mouse & drag     move focus";
+  VT::position_cursor_at (row++, 4); std::cout << "right mouse & drag    adjust brightness / contrast";
+  VT::position_cursor_at (row++, 4); std::cout << "Esc                   reset brightness / contrast";
+  row++;
+  VT::position_cursor_at (row++, 4); std::cout << "q / Q / Crtl-C        exit mrpeek";
+  row++;
+  VT::position_cursor_at (row++, 4); std::cout << "press any key to exit help page";
+
+
+  std::cout.flush();
+
+  int event, x, y;
+  while ((event = VT::read_user_input(x, y)) == 0)
+    std::this_thread::sleep_for (std::chrono::milliseconds(10));
+
+  std::cout << VT::ClearScreen;
+  std::cout.flush();
+}
+
+
+
 void run ()
 {
   auto image = Image<value_type>::open (argument[0]);
@@ -255,8 +288,14 @@ void run ()
 
   opt = get_options ("crosshairs");
   if (opt.size()) {
-    focus[x_axis] = opt[0][0];
-    focus[y_axis] = opt[0][1];
+    int x = opt[0][1];
+    int y = opt[0][1];
+    if (x<0 || y<0) {
+      crosshair = false;
+    } else {
+      focus[x_axis] = opt[0][0];
+      focus[y_axis] = opt[0][1];
+    }
   }
 
   image_scale = get_option_value ("image_scale", image_scale);
@@ -302,6 +341,7 @@ void run ()
         case VT::MouseMoveLeft: focus[x_axis] += xp-x; focus[y_axis] += yp-y; break;
         case VT::Escape: colourmap.invalidate_scaling(); break;
         case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp); break;
+        case '?': show_help(); break;
 
         default: need_update = false; break;
       }
