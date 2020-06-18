@@ -300,9 +300,8 @@ void run ()
         case '+': image_scale *= 1.1; std::cout << VT::ClearScreen; break;
         case '-': image_scale /= 1.1; std::cout << VT::ClearScreen; break;
         case VT::MouseMoveLeft: focus[x_axis] += xp-x; focus[y_axis] += yp-y; break;
-        case VT::Escape: colourmap.update_scaling (x, y); break;
+        case VT::Escape: colourmap.invalidate_scaling(); break;
         case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp); break;
-        case VT::Home: colourmap.invalidate_scaling(); break;
 
         default: need_update = false; break;
       }
