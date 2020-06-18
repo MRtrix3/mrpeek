@@ -277,14 +277,13 @@ void run ()
         case 'c': axis = 1; std::cout << VT::ClearScreen; break;
         case '+': image_scale *= 1.1; std::cout << VT::ClearScreen; break;
         case '-': image_scale /= 1.1; std::cout << VT::ClearScreen; break;
-        case VT::MouseRight: xp = x; yp = y; break;
-        case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp);
-                                 xp = x; yp = y;
-                                 break;
+        case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp); break;
         case VT::Home: colourmap.invalidate_scaling(); break;
 
         default: break;
       }
+      xp = x;
+      yp = y;
 
     } while (!(event == 'q' || event == 'Q' || event == VT::Ctrl('c') || event == VT::Ctrl('q')));
     VT::exit_raw_mode();
