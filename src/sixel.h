@@ -46,10 +46,7 @@ namespace MR {
         bool scaling_set () const { return std::isfinite (_offset) && std::isfinite (_scale); }
         void invalidate_scaling () { _offset = _scale = NaN; }
         void set_scaling (float offset, float scale) { _offset = offset; _scale = scale*num_colours; }
-        void set_scaling_min_max (float vmin, float vmax) {
-          float s = 1.0f / (vmax - vmin);
-          set_scaling (-vmin/s, s);
-        }
+        void set_scaling_min_max (float vmin, float vmax) { set_scaling (-vmin, 1.0f / (vmax - vmin)); }
         void update_scaling (int x, int y) {
           float mid = _offset + 0.5f*_scale;
           mid += BrightnessIncrement * y / _scale;
@@ -57,7 +54,7 @@ namespace MR {
           _offset = mid - 0.5f*_scale;
         }
         const float offset () const { return _offset; }
-        const float scale () const { return _scale; }
+        const float scale () const { return _scale/num_colours; }
 
       private:
         int num_colours;
@@ -103,7 +100,6 @@ namespace MR {
 
           out += VT::SixelStop;
           std::cout << out;
-          std::cout.flush();
         }
 
       private:

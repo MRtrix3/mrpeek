@@ -5,8 +5,11 @@ namespace MR {
   namespace VT {
 
     constexpr const char* ClearScreen = "\033[2J";
+    constexpr const char* SaveScreen = "\033[?47h";
+    constexpr const char* RestoreScreen = "\033[?47l";
     constexpr const char* CursorHome = "\033[H";
     constexpr const char* ClearLine = "\033[2K";
+    constexpr const char* CarriageReturn = "\r";
 
     constexpr const char* SixelStart = "\033Pq$";
     constexpr const char* SixelStop = "\033\\";
@@ -42,6 +45,10 @@ namespace MR {
 
     constexpr inline int Ctrl (int c) { return c & 0x1F; }
 
+    inline void position_cursor_at (int row, int column)
+    {
+      std::cout << "\033[" << row << ";" << column << "H";
+    }
 
 
     void enter_raw_mode();
