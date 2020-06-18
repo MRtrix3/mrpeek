@@ -141,24 +141,20 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   }
 
   Header header_target (image);
-  default_type image_scale = 1.0;
-  default_type original_extent;
-  auto opt = get_options ("image_scale");
-  if (opt.size()) {
-    image_scale = opt[0][0];
-    vector<default_type> new_voxel_size (3, 1.0);
-    for (int d = 0; d < 3; ++d) {
-      if (d != axis)
-        new_voxel_size[d] = (image.size(d) * image.spacing(d)) / std::ceil (image.size(d) * image_scale);
-      else
-        new_voxel_size[d] = image.spacing(d);
-      original_extent = image.size(d) * image.spacing(d);
 
-      header_target.size(d) = std::round (image.size(d) * image.spacing(d) / new_voxel_size[d] - 0.0001); // round down at .5
-      for (size_t i = 0; i < 3; ++i)
-        header_target.transform()(i,3) += 0.5 * ((new_voxel_size[d] - header_target.spacing(d)) + (original_extent - (header_target.size(d) * new_voxel_size[d]))) * header_target.transform()(i,d);
-      header_target.spacing(d) = new_voxel_size[d];
-    }
+  default_type original_extent;
+  vector<default_type> new_voxel_size (3, 1.0);
+  for (int d = 0; d < 3; ++d) {
+    if (d != axis)
+      new_voxel_size[d] = (image.size(d) * image.spacing(d)) / std::ceil (image.size(d) * image_scale);
+    else
+      new_voxel_size[d] = image.spacing(d);
+    original_extent = image.size(d) * image.spacing(d);
+
+    header_target.size(d) = std::round (image.size(d) * image.spacing(d) / new_voxel_size[d] - 0.0001); // round down at .5
+    for (size_t i = 0; i < 3; ++i)
+      header_target.transform()(i,3) += 0.5 * ((new_voxel_size[d] - header_target.spacing(d)) + (original_extent - (header_target.size(d) * new_voxel_size[d]))) * header_target.transform()(i,d);
+    header_target.spacing(d) = new_voxel_size[d];
   }
 
   Adapter::Reslice<Interp::Nearest, Image<value_type>> image_regrid(image, header_target, Adapter::NoTransform, Adapter::AutoOverSample); // out_of_bounds_value
@@ -240,6 +236,9 @@ void run ()
     crosshairs_x = opt[0][0];
     crosshairs_y = opt[0][1];
   }
+
+  image_scale = get_option_value ("image_scale", image_scale);
+
 
   // start loop
   VT::enter_raw_mode();
