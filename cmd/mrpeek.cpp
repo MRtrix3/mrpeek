@@ -26,10 +26,9 @@ void usage ()
   // lifted from cmd/mrcolour.cpp:
   const ColourMap::Entry* entry = ColourMap::maps;
   do {
-    if (strcmp(entry->name, "Complex"))
-      colourmap_choices_std.push_back (lowercase (entry->name));
+    colourmap_choices_std.push_back (lowercase (entry->name));
     ++entry;
-  } while (entry->name);
+  } while (entry->name && !entry->special && !entry->is_colour);
   colourmap_choices_cstr.reserve (colourmap_choices_std.size() + 1);
   for (const auto& s : colourmap_choices_std)
     colourmap_choices_cstr.push_back (s.c_str());
@@ -247,6 +246,7 @@ void show_help ()
   VT::position_cursor_at (row++, 4); std::cout << "left mouse & drag     move focus";
   VT::position_cursor_at (row++, 4); std::cout << "right mouse & drag    adjust brightness / contrast";
   VT::position_cursor_at (row++, 4); std::cout << "Esc                   reset brightness / contrast";
+  VT::position_cursor_at (row++, 4); std::cout << "1-9                   select colourmap";
   row++;
   VT::position_cursor_at (row++, 4); std::cout << "q / Q / Crtl-C        exit mrpeek";
   row++;
@@ -352,7 +352,16 @@ void run ()
         case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp); break;
         case '?': show_help(); break;
 
-        default: need_update = false; break;
+        default:
+                  if (event >= '1' && event <= '9') {
+                    int idx = event - '1';
+                    if (idx < colourmap_choices_std.size()) {
+                      colourmap_ID = idx;
+                      colourmap = Sixel::ColourMap (ColourMap::maps[colourmap_ID], levels);
+                      break;
+                    }
+                  }
+                  need_update = false; break;
       }
       xp = x;
       yp = y;
