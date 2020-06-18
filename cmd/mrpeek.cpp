@@ -267,7 +267,7 @@ void run ()
         case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp);
                                  xp = x; yp = y;
                                  break;
-        case VT::Escape: colourmap.invalidate_scaling(); break;
+        case VT::Home: colourmap.invalidate_scaling(); break;
 
         default: break;
       }
