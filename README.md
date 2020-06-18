@@ -1,16 +1,20 @@
-# OHBM BrainHack 2020: `mrpeek`
+# `mrpeek`: a medical image viewer in the terminal
 
-Getting started:
+Launched as a project for the [OHBM BrainHack 2020](https://ohbm.github.io/hackathon2020/), `mrpeek` allows to quickly inspect 3-D and 4-D medical images without leaving the terminal. Demo [here](https://twitter.com/jdtournier/status/1273657837034655744?s=20).
+
+## Getting started
+
+First, you'll need a terminal that supports [sixel encoding](https://github.com/MRtrix3/mrpeek/wiki), the format used for rendering images inline. For example:
+
+- XTerm on Linux
+- iTerm2 on macOS
+
+Next, you need to build `mrpeek` from source, following these instructions:
 
 - [install MRtrix3 from source](https://mrtrix.readthedocs.io/en/latest/installation/build_from_source.html)
 - clone this repo and [set it up as a module](https://mrtrix.readthedocs.io/en/latest/tips_and_tricks/external_modules.html)
 - [build](https://www.mrtrix.org/developer-documentation/build_page.html) the command and test that it works
-- familiarise yourself with the MRtrix3 codebase
-  - start by reading the [main publication](https://pubmed.ncbi.nlm.nih.gov/31473352/) as an introduction
-  - browse through the [API documentation](https://www.mrtrix.org/developer-documentation/)
-- learn about [sixel encoding](https://en.wikipedia.org/wiki/Sixel)
-  - figure out best tools to handle them, starting with [information on the wiki](https://github.com/MRtrix3/mrpeek/wiki)
-- take a look at the [project board](https://github.com/MRtrix3/mrpeek/projects/1), and don't hesitate to add tasks, modify the existing ones, and take on those you feel ready to tackle!
+
 
 ## Working on the code
 
