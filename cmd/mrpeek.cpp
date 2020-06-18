@@ -250,7 +250,7 @@ void run ()
       std::cout << VT::CursorHome;
       display (image, colourmap);
 
-      int x, y, xp, yp;
+      int x, y, xp = 0, yp = 0;
       event = VT::read_user_input(x, y);
 
       switch (event) {
