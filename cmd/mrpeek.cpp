@@ -191,7 +191,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
 
     std::vector<value_type> currentslice (x_dim*y_dim);
     size_t k = 0;
-    for (auto l = Loop ({0,1})(image_regrid); l; ++l)
+    for (auto l = Loop ({ size_t(x_axis), size_t(y_axis) })(image_regrid); l; ++l)
       currentslice[k++] = image_regrid.value();
 
     value_type vmin = percentile(currentslice, pmin);
