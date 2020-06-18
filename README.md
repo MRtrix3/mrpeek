@@ -6,7 +6,7 @@ Launched as a project for the [OHBM BrainHack 2020](https://ohbm.github.io/hacka
 
 First, you'll need a terminal that supports [sixel encoding](https://github.com/MRtrix3/mrpeek/wiki), the format used for rendering images inline. For example:
 
-- XTerm on Linux
+- mlterm on Linux
 - iTerm2 on macOS
 - minTTY on Windows
 
