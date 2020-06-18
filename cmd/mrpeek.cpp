@@ -125,6 +125,8 @@ int axis = 2;
 int slice = 0;
 value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX;
 int crosshairs_x, crosshairs_y;  // relative to original image grid
+bool crosshair = false;
+vector<int> focus;  // relative to original image grid
 
 
 
@@ -138,6 +140,18 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
     case 1: x_axis = 0; y_axis = 2; x_forward = false; y_forward = false; break;
     case 2: x_axis = 0; y_axis = 1; x_forward = false; y_forward = false; break;
     default: throw Exception ("invalid axis specifier");
+  }
+
+  if (!focus.size()) {
+    focus.resize(3);
+    if (crosshair) {
+      focus[x_axis] = x_forward ? crosshairs_x : image.size(x_axis)-1-crosshairs_x;
+      focus[y_axis] = y_forward ? crosshairs_y : image.size(y_axis)-1-crosshairs_y;
+    } else {
+      focus[x_axis] = x_forward ? image.size(x_axis)/2 : image.size(x_axis)-1-image.size(x_axis)/2;
+      focus[y_axis] = y_forward ? image.size(y_axis)/2 : image.size(y_axis)-1-image.size(y_axis)/2;
+    }
+    focus[axis] = slice;
   }
 
   Header header_target (image);
@@ -188,11 +202,10 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
       encoder(x, y, image_regrid.value());
     }
   }
-  /*
-     if (opt.size()) {
-     encoder.draw_crosshairs (std::round(image_scale * (crosshairs_x + 0.5)), std::round(image_scale * (crosshairs_y + 0.5)));
-     }
-     */
+
+   if (crosshair)
+    encoder.draw_crosshairs (std::round(image_scale * (focus[x_axis] + 0.5)), std::round(image_scale * (focus[y_axis] + 0.5)));
+
 
   // encode buffer and print out:
   encoder.write();
@@ -232,7 +245,8 @@ void run ()
   }
 
   opt = get_options ("crosshairs");
-  if (opt.size()){
+  if (opt.size()) {
+    crosshair = true;
     crosshairs_x = opt[0][0];
     crosshairs_y = opt[0][1];
   }
