@@ -1,7 +1,9 @@
+#include <termios.h>
+
 #include "command.h"
 #include "image.h"
 #include "algo/loop.h"
-#include "interp/cubic.h"
+#include "interp/nearest.h"
 #include "filter/resize.h"
 
 #include "sixel.h"
@@ -137,26 +139,27 @@ void run ()
   }
 
   Header header_target (header_in);
+  default_type image_scale = 1.0;
+  default_type original_extent;
   auto opt = get_options ("image_scale");
   if (opt.size()) {
-    default_type image_scale (opt[0][0]);
-    vector<default_type> new_voxel_size (1.0, 3);
-    Eigen::Vector3 original_extent;
+    image_scale = opt[0][0];
+    vector<default_type> new_voxel_size (3, 1.0);
     for (int d = 0; d < 3; ++d) {
       if (d != axis)
         new_voxel_size[d] = (header_in.size(d) * header_in.spacing(d)) / std::ceil (header_in.size(d) * image_scale);
       else
         new_voxel_size[d] = header_in.spacing(d);
-      original_extent[d] = header_in.size(d) * header_in.spacing(d);
+      original_extent = header_in.size(d) * header_in.spacing(d);
 
       header_target.size(d) = std::round (header_in.size(d) * header_in.spacing(d) / new_voxel_size[d] - 0.0001); // round down at .5
       for (size_t i = 0; i < 3; ++i)
-        header_target.transform()(i,3) += 0.5 * ((new_voxel_size[d] - header_target.spacing(d)) + (original_extent[d] - (header_target.size(d) * new_voxel_size[d]))) * header_target.transform()(i,d);
+        header_target.transform()(i,3) += 0.5 * ((new_voxel_size[d] - header_target.spacing(d)) + (original_extent - (header_target.size(d) * new_voxel_size[d]))) * header_target.transform()(i,d);
       header_target.spacing(d) = new_voxel_size[d];
     }
   }
 
-  Adapter::Reslice<Interp::Cubic, Image<value_type>> image_regrid(image_in, header_target, Adapter::NoTransform, Adapter::AutoOverSample); // out_of_bounds_value
+  Adapter::Reslice<Interp::Nearest, Image<value_type>> image_regrid(image_in, header_target, Adapter::NoTransform, Adapter::AutoOverSample); // out_of_bounds_value
 
   const int x_dim = image_regrid.size(x_axis);
   const int y_dim = image_regrid.size(y_axis);
@@ -194,20 +197,85 @@ void run ()
 
   Sixel::Encoder encoder (x_dim, y_dim, colourmap);
 
-  for (int y = 0; y < y_dim; ++y) {
-    image_regrid.index(y_axis) = y_forward ? y : y_dim-1-y;
-    for (int x = 0; x < x_dim; ++x) {
-      image_regrid.index(x_axis) = x_forward ? x : x_dim-1-x;
-      encoder(x, y, image_regrid.value());
-    }
+  int crosshairs_x, crosshairs_y;  // relative to original image grid
+  opt = get_options ("crosshairs");
+  if (opt.size()){
+    const int x = opt[0][0], y = opt[0][1];
+    crosshairs_x = x_forward ? x : image_in.size(x_axis)-1-x;
+    crosshairs_y = y_forward ? y : image_in.size(y_axis)-1-y;
   }
 
-  opt = get_options ("crosshairs");
-  if (opt.size())
-    encoder.draw_crosshairs (opt[0][0], opt[0][1]);
 
-  // encode buffer and print out:
-  encoder.write();
+  struct termios old_termios;
+  struct termios new_termios;
+  tcgetattr(STDIN_FILENO, &old_termios);
+  (void) memcpy(&new_termios, &old_termios, sizeof(old_termios));
+  new_termios.c_iflag &= ~(ICRNL | IXON);
+  new_termios.c_oflag &= ~(OPOST);
+  new_termios.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+
+  // start loop
+  std::cout.write("\033[2J", 4);
+  int slice_curr = slice;
+  while (true) {
+    image_regrid.index(axis) = slice_curr;
+    std::cout.write("\033[H", 3);
+
+    for (int y = 0; y < y_dim; ++y) {
+      image_regrid.index(y_axis) = y_forward ? y : y_dim-1-y;
+      for (int x = 0; x < x_dim; ++x) {
+        image_regrid.index(x_axis) = x_forward ? x : x_dim-1-x;
+        encoder(x, y, image_regrid.value());
+      }
+    }
+
+    if (opt.size()) {
+      encoder.draw_crosshairs (std::round(image_scale * (crosshairs_x + 0.5)), std::round(image_scale * (crosshairs_y + 0.5)));
+    }
+
+    // encode buffer and print out:
+    encoder.write();
+
+    // enter cbreak mode
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &new_termios);
+
+    // read input
+    char c;
+    std::cin.get(c);
+    if (c == 27) { // escape
+      std::cin.get(c);
+      if (c == 91) {
+        std::cin.get(c);
+        switch (c) {
+          case 53:
+            std::cin.get(c);
+            if (c == 126){
+              slice_curr++; //page up
+              break;
+            }
+            break;
+          case 54:
+            std::cin.get(c);
+            if (c == 126){
+              slice_curr--; //page down
+              break;
+            }
+            break;
+          case 65: crosshairs_y--; break; // up
+          case 66: crosshairs_y++; break; // down
+          case 67: crosshairs_x++; break; // right
+          case 68: crosshairs_x--; break; // left
+        }
+      }
+    }
+    else if (c == 'q' || c == 'Q')
+      break;
+
+    // back to normal mode
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &old_termios);
+  }
+  // make sure we end in non-cbreak mode
+  tcsetattr(STDIN_FILENO, TCSAFLUSH, &old_termios);
 
   VT::enter_raw_mode();
   try {
