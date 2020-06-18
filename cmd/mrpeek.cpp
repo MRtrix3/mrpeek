@@ -337,8 +337,8 @@ void run ()
         case VT::MouseWheelUp: ++focus[slice_axis]; break;
         case VT::Down:
         case VT::MouseWheelDown: --focus[slice_axis]; break;
-        case VT::Left: if (image.ndim() > 3) --image.index(3); if (image.index(3) < 0) image.index(3) = image.size(3)-1; break;
-        case VT::Right: if (image.ndim() > 3) ++image.index(3); if (image.index(3) >= image.size(3)) image.index(3) = 0; break;
+        case VT::Left: if (image.ndim() > 3) {--image.index(3); if (image.index(3) < 0) image.index(3) = image.size(3)-1;} break;
+        case VT::Right: if (image.ndim() > 3) {++image.index(3); if (image.index(3) >= image.size(3)) image.index(3) = 0;} break;
         case 'f': crosshair = !crosshair; std::cout << VT::ClearScreen; break;
         case 'a': slice_axis = 2; std::cout << VT::ClearScreen; break;
         case 's': slice_axis = 0; std::cout << VT::ClearScreen; break;
