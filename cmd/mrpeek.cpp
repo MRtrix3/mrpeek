@@ -37,9 +37,18 @@ void usage ()
 
 
 
-  AUTHOR = "Joe Bloggs (joe.bloggs@acme.org)";
+  AUTHOR = "Jianxiao Wu (vesaveronica@gmail.com) & "
+    "Max Pietsch (maximilian.pietsch@kcl.ac.uk) & "
+    "Daan Christiaens (daan.christiaens@kcl.ac.uk) & "
+    "J-Donald Tournier (jdtournier@gmail.com)";
 
   SYNOPSIS = "preview images on the terminal (requires terminal with sixel support)";
+
+  DESCRIPTION
+    + "This requires a terminal capable of displaying sixel graphics (e.g. iTerm2 on macOS, "
+    "minTTY on Windows, mlTerm on Linux). Displays the image specified within the terminal, "
+    "and allows interacting with the image. Press the ? key while running for runtime usage "
+    "instructions.";
 
   ARGUMENTS
   + Argument ("in", "the input image.").type_image_in ();
