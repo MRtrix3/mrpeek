@@ -79,7 +79,7 @@ void usage ()
   +   Argument ("y").type_integer(0)
 
   + Option ("levels",
-            "number of intensity levels in the colourmap. Default is 100.")
+            "number of intensity levels in the colourmap. Default is 64.")
   +   Argument ("number").type_integer (2)
 
   + Option   ("image_scale",
@@ -119,7 +119,7 @@ value_type percentile (Container& data, default_type percentile)
 // Global variables to hold slide dislay parameters:
 // These will need to be moved into a struct/class eventually...
 int colourmap_ID = 0;
-int levels = 100;
+int levels = 64;
 value_type image_scale = 1.0;
 int x_axis, y_axis, slice_axis = 2;
 value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX;
