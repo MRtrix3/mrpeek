@@ -259,12 +259,11 @@ void run ()
   try {
     std::cout << VT::ClearScreen;
 
-    int event;
+    int event, x, y, xp = 0, yp = 0;
     do {
       std::cout << VT::CursorHome;
       display (image, colourmap);
 
-      int x, y, xp = 0, yp = 0;
       event = VT::read_user_input(x, y);
 
       switch (event) {
