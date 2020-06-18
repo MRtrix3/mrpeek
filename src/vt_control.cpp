@@ -26,6 +26,8 @@ namespace MR {
       raw.c_iflag &= ~(ICRNL | IXON);
       raw.c_oflag &= ~(OPOST);
       raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+      raw.c_cc[VMIN] = 0;
+      raw.c_cc[VTIME] = 0;
       tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
     }
 
@@ -37,7 +39,6 @@ namespace MR {
       std::cout.flush();
     }
 
-
     int read_user_input (int& x, int& y)
     {
       int nread;
@@ -46,6 +47,7 @@ namespace MR {
       while ((nread = read (STDIN_FILENO, &c, 1)) != 1) {
         if (nread == -1 && errno != EAGAIN)
           throw Exception ("error reading user input");
+        return 0;
       }
 
       if (c == Escape) {

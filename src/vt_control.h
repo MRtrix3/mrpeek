@@ -45,6 +45,10 @@ namespace MR {
 
     constexpr inline int Ctrl (int c) { return c & 0x1F; }
 
+    inline void position_cursor_at (int row, int column)
+    {
+      std::cout << "\033[" << row << ";" << column << "H";
+    }
 
 
     void enter_raw_mode();

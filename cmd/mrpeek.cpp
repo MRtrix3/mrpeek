@@ -75,12 +75,12 @@ void usage ()
   +   Argument ("name").type_choice (colourmap_choices_cstr.data())
 
   + Option ("crosshairs",
-            "draw crosshairs at specified position")
-  +   Argument ("x").type_integer(0)
-  +   Argument ("y").type_integer(0)
+            "draw crosshairs at specified position. Set to negative position to hide.")
+  +   Argument ("x").type_integer()
+  +   Argument ("y").type_integer()
 
   + Option ("levels",
-            "number of intensity levels in the colourmap. Default is 100.")
+            "number of intensity levels in the colourmap. Default is 64.")
   +   Argument ("number").type_integer (2)
 
   + Option ("scale_image",
@@ -118,7 +118,7 @@ value_type percentile (Container& data, default_type percentile)
 // Global variables to hold slide dislay parameters:
 // These will need to be moved into a struct/class eventually...
 int colourmap_ID = 0;
-int levels = 100;
+int levels = 64;
 int x_axis, y_axis, slice_axis = 2;
 value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX, scale_image = 1.0;
 bool crosshair = true;
@@ -209,7 +209,10 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   image.index(0) = focus[0];
   image.index(1) = focus[1];
   image.index(2) = focus[2];
-  std::cout << VT::CarriageReturn << VT::ClearLine << "[ " << focus[0] << " " << focus[1] << " " << focus[2] << " ";
+  std::cout 
+    
+    
+    VT::CarriageReturn << VT::ClearLine << "[ " << focus[0] << " " << focus[1] << " " << focus[2] << " ";
   for (size_t n = 3; n < image.ndim(); ++n)
     std::cout << image.index(n) << " ";
   std::cout << "]: " << image.value();
@@ -218,6 +221,39 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
 }
 
 
+
+
+
+void show_help ()
+{
+  std::cout << VT::ClearScreen;
+  int row = 2;
+  VT::position_cursor_at (row++, 2); std::cout << "mrpeek key bindings:";
+  row++;
+  VT::position_cursor_at (row++, 4); std::cout << "up/down               previous/next slice";
+  VT::position_cursor_at (row++, 4); std::cout << "left/right            previous/next volume";
+  VT::position_cursor_at (row++, 4); std::cout << "a / s / c             axial / sagittal / coronal projection";
+  VT::position_cursor_at (row++, 4); std::cout << "- / +                 zoom out / in";
+  VT::position_cursor_at (row++, 4); std::cout << "f                     show / hide crosshairs";
+  VT::position_cursor_at (row++, 4); std::cout << "r                     reset focus";
+  VT::position_cursor_at (row++, 4); std::cout << "left mouse & drag     move focus";
+  VT::position_cursor_at (row++, 4); std::cout << "right mouse & drag    adjust brightness / contrast";
+  VT::position_cursor_at (row++, 4); std::cout << "Esc                   reset brightness / contrast";
+  row++;
+  VT::position_cursor_at (row++, 4); std::cout << "q / Q / Crtl-C        exit mrpeek";
+  row++;
+  VT::position_cursor_at (row++, 4); std::cout << "press any key to exit help page";
+
+
+  std::cout.flush();
+
+  int event, x, y;
+  while ((event = VT::read_user_input(x, y)) == 0)
+    std::this_thread::sleep_for (std::chrono::milliseconds(10));
+
+  std::cout << VT::ClearScreen;
+  std::cout.flush();
+}
 
 
 
@@ -254,8 +290,14 @@ void run ()
 
   opt = get_options ("crosshairs");
   if (opt.size()) {
-    focus[x_axis] = opt[0][0];
-    focus[y_axis] = opt[0][1];
+    int x = opt[0][1];
+    int y = opt[0][1];
+    if (x<0 || y<0) {
+      crosshair = false;
+    } else {
+      focus[x_axis] = opt[0][0];
+      focus[y_axis] = opt[0][1];
+    }
   }
 
   //CONF option: MRPeekScaleImage
@@ -270,12 +312,22 @@ void run ()
   try {
     std::cout << VT::ClearScreen;
 
-    int event, x, y, xp = 0, yp = 0;
-    do {
-      std::cout << VT::CursorHome;
-      display (image, colourmap);
+    int event = 0;
+    int x, y, xp = 0, yp = 0;
+    bool need_update = true;
 
-      event = VT::read_user_input(x, y);
+    do {
+
+      while ((event = VT::read_user_input(x, y)) == 0) {
+        if (need_update) {
+          std::cout << VT::CursorHome;
+          display (image, colourmap);
+          need_update = false;
+        }
+        std::this_thread::sleep_for (std::chrono::milliseconds(10));
+      }
+
+      need_update = true;
 
       switch (event) {
         case VT::Up:
@@ -293,11 +345,11 @@ void run ()
         case '+': scale_image *= 1.1; std::cout << VT::ClearScreen; break;
         case '-': scale_image /= 1.1; std::cout << VT::ClearScreen; break;
         case VT::MouseMoveLeft: focus[x_axis] += xp-x; focus[y_axis] += yp-y; break;
-        case VT::Escape: colourmap.update_scaling (x, y); break;
+        case VT::Escape: colourmap.invalidate_scaling(); break;
         case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp); break;
-        case VT::Home: colourmap.invalidate_scaling(); break;
+        case '?': show_help(); break;
 
-        default: break;
+        default: need_update = false; break;
       }
       xp = x;
       yp = y;
