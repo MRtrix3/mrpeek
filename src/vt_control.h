@@ -4,6 +4,10 @@
 namespace MR {
   namespace VT {
 
+    constexpr const char* ClearScreen = "\033[2J";
+    constexpr const char* CursorHome = "\033[H";
+    constexpr const char* ClearLine = "\033[2K";
+
     constexpr const char* SixelStart = "\033Pq$";
     constexpr const char* SixelStop = "\033\\";
 
@@ -14,6 +18,7 @@ namespace MR {
     constexpr const char* MouseTrackingOff = "\033[?1002l";
 
     constexpr char Escape = '\033';
+    constexpr char CtrlC = '\x03';
     constexpr int Up = 0x0101;
     constexpr int Down = 0x0102;
     constexpr int Right = 0x0103;

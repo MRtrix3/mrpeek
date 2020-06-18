@@ -12,8 +12,8 @@ namespace MR {
       public:
         ColourMap (const ::MR::ColourMap::Entry& colourmapper, int number_colours) :
           num_colours (number_colours),
-          _offset(0.0),
-          _scale (1.0) {
+          _offset(NaN),
+          _scale (NaN) {
             const auto& map_fn = colourmapper.basic_mapping;
             for (int n = 0; n <= num_colours; ++n) {
               const Eigen::Array3f colour = 100.0*map_fn (float(n)/num_colours);
@@ -31,6 +31,7 @@ namespace MR {
         const int range () const { return num_colours; }
         const int crosshairs() const { return num_colours+1; }
 
+
         // apply rescaling from floating-point value to clamped rescaled
         // integer:
         int rescale (float value) const {
@@ -39,7 +40,13 @@ namespace MR {
         }
 
         // set offset * scale parameters to adjust brightness / contrast:
+        bool scaling_set () const { return std::isfinite (_offset) && std::isfinite (_scale); }
+        void invalidate_scaling () { _offset = _scale = NaN; }
         void set_scaling (float offset, float scale) { _offset = offset; _scale = scale*num_colours; }
+        void set_scaling_min_max (float vmin, float vmax) {
+          float s = 1.0f / (vmax - vmin);
+          set_scaling (-vmin/s, s);
+        }
         const float offset () const { return _offset; }
         const float scale () const { return _scale; }
 
