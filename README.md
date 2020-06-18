@@ -8,12 +8,26 @@ First, you'll need a terminal that supports [sixel encoding](https://github.com/
 
 - XTerm on Linux
 - iTerm2 on macOS
+- minTTY on Windows
 
 Next, you need to build `mrpeek` from source, following these instructions:
 
-- [install MRtrix3 from source](https://mrtrix.readthedocs.io/en/latest/installation/build_from_source.html)
-- clone this repo and [set it up as a module](https://mrtrix.readthedocs.io/en/latest/tips_and_tricks/external_modules.html)
-- [build](https://www.mrtrix.org/developer-documentation/build_page.html) the command and test that it works
+1. [install MRtrix3 from source](https://mrtrix.readthedocs.io/en/latest/installation/build_from_source.html) (you will need `zlib` and Eigen 3.3):
+```
+git clone https://github.com/MRtrix3/mrtrix3.git
+cd mrtrix3
+./configure -noshared -nogui
+```
+2. clone this repo and [set it up as a module](https://mrtrix.readthedocs.io/en/latest/tips_and_tricks/external_modules.html):
+```
+git clone https://github.com/MRtrix3/mrpeek.git
+cd mrpeek
+../build
+```
+3. try it out:
+```
+bin/mrpeek /path/to/image.nii
+```
 
 
 ## Working on the code
