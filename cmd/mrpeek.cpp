@@ -259,6 +259,8 @@ void run ()
         case 'a': axis = 2; std::cout << VT::ClearScreen; break;
         case 's': axis = 0; std::cout << VT::ClearScreen; break;
         case 'c': axis = 1; std::cout << VT::ClearScreen; break;
+        case '+': image_scale *= 1.1; std::cout << VT::ClearScreen; break;
+        case '-': image_scale /= 1.1; std::cout << VT::ClearScreen; break;
         case VT::Escape: colourmap.invalidate_scaling(); break;
 
         default: break;
