@@ -250,7 +250,7 @@ void run ()
       std::cout << VT::CursorHome;
       display (image, colourmap);
 
-      int x, y;
+      int x, y, xp, yp;
       event = VT::read_user_input(x, y);
 
       switch (event) {
@@ -263,9 +263,13 @@ void run ()
         case 'c': axis = 1; std::cout << VT::ClearScreen; break;
         case '+': image_scale *= 1.1; std::cout << VT::ClearScreen; break;
         case '-': image_scale /= 1.1; std::cout << VT::ClearScreen; break;
+        case VT::MouseRight: xp = x; yp = y; break;
+        case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp);
+                                 xp = x; yp = y;
+                                 break;
         case VT::Escape: colourmap.invalidate_scaling(); break;
 
-        default: std::cerr << event << "\n";
+        default: break;
       }
 
     } while (!(event == 'q' || event == 'Q' || event == VT::Ctrl('c') || event == VT::Ctrl('q')));
