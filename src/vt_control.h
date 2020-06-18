@@ -5,6 +5,8 @@ namespace MR {
   namespace VT {
 
     constexpr const char* ClearScreen = "\033[2J";
+    constexpr const char* SaveScreen = "\033[?47h";
+    constexpr const char* RestoreScreen = "\033[?47l";
     constexpr const char* CursorHome = "\033[H";
     constexpr const char* ClearLine = "\033[2K";
 

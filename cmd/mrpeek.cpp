@@ -146,20 +146,21 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   set_axes();
 
   Header header_target (image);
+  float new_voxel_size = 1.0;
 
   default_type original_extent;
-  vector<default_type> new_voxel_size (3, 1.0);
   for (int d = 0; d < 3; ++d) {
-    if (d != slice_axis)
-      new_voxel_size[d] = (image.size(d) * image.spacing(d)) / std::ceil (image.size(d) * image_scale);
+    if (d == slice_axis)
+      new_voxel_size = image.spacing(d);
     else
-      new_voxel_size[d] = image.spacing(d);
+      new_voxel_size = std::min (std::min (image.spacing(0), image.spacing(1)), image.spacing(2)) / image_scale;
+
     original_extent = image.size(d) * image.spacing(d);
 
-    header_target.size(d) = std::round (image.size(d) * image.spacing(d) / new_voxel_size[d] - 0.0001); // round down at .5
+    header_target.size(d) = std::round (image.size(d) * image.spacing(d) / new_voxel_size - 0.0001); // round down at .5
     for (size_t i = 0; i < 3; ++i)
-      header_target.transform()(i,3) += 0.5 * ((new_voxel_size[d] - header_target.spacing(d)) + (original_extent - (header_target.size(d) * new_voxel_size[d]))) * header_target.transform()(i,d);
-    header_target.spacing(d) = new_voxel_size[d];
+      header_target.transform()(i,3) += 0.5 * ((new_voxel_size - header_target.spacing(d)) + (original_extent - (header_target.size(d) * new_voxel_size))) * header_target.transform()(i,d);
+    header_target.spacing(d) = new_voxel_size;
   }
 
   Adapter::Reslice<Interp::Nearest, Image<value_type>> image_regrid(image, header_target, Adapter::NoTransform, Adapter::AutoOverSample); // out_of_bounds_value
@@ -280,7 +281,7 @@ void run ()
         case 'c': slice_axis = 1; std::cout << VT::ClearScreen; break;
         case '+': image_scale *= 1.1; std::cout << VT::ClearScreen; break;
         case '-': image_scale /= 1.1; std::cout << VT::ClearScreen; break;
-        case VT::MouseMoveLeft: focus[0] += x-xp; focus[1] += y-yp; break;
+        case VT::MouseMoveLeft: focus[x_axis] += x-xp; focus[y_axis] += y-yp; break;
         case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp); break;
         case VT::Home: colourmap.invalidate_scaling(); break;
 
