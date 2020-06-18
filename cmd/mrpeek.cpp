@@ -285,6 +285,8 @@ void run ()
         case 'a': slice_axis = 2; std::cout << VT::ClearScreen; break;
         case 's': slice_axis = 0; std::cout << VT::ClearScreen; break;
         case 'c': slice_axis = 1; std::cout << VT::ClearScreen; break;
+        case 'r': focus[x_axis] = std::round (image.size(x_axis)/2); focus[x_axis] = std::round (image.size(x_axis)/2);
+                  focus[slice_axis] = std::round (image.size(slice_axis)/2); std::cout << VT::ClearScreen; break;
         case '+': image_scale *= 1.1; std::cout << VT::ClearScreen; break;
         case '-': image_scale /= 1.1; std::cout << VT::ClearScreen; break;
         case VT::MouseMoveLeft: focus[x_axis] += xp-x; focus[y_axis] += yp-y; break;
