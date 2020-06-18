@@ -8,6 +8,9 @@
 namespace MR {
   namespace Sixel {
 
+    constexpr float BrightnessIncrement = 0.03;
+    constexpr float ContrastIncrement = 0.03;
+
     class ColourMap {
       public:
         ColourMap (const ::MR::ColourMap::Entry& colourmapper, int number_colours) :
@@ -46,6 +49,12 @@ namespace MR {
         void set_scaling_min_max (float vmin, float vmax) {
           float s = 1.0f / (vmax - vmin);
           set_scaling (-vmin/s, s);
+        }
+        void update_scaling (int x, int y) {
+          float mid = _offset + 0.5f*_scale;
+          mid += BrightnessIncrement * y / _scale;
+          _scale = std::exp (std::log(_scale) + ContrastIncrement * x);
+          _offset = mid - 0.5f*_scale;
         }
         const float offset () const { return _offset; }
         const float scale () const { return _scale; }
