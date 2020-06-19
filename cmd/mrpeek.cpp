@@ -399,7 +399,10 @@ void run ()
                     int n;
                     if (query_int ("select number of levels: ", n, 1, 254)) {
                       levels = n;
+                      float offset = colourmap.offset();
+                      float scale = colourmap.scale();
                       colourmap = Sixel::ColourMap (ColourMap::maps[colourmap_ID], levels);
+                      colourmap.set_scaling (offset, scale);
                     }
                   } break;
         case '?': show_help(); break;
