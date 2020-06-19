@@ -19,6 +19,8 @@ using namespace App;
 vector<std::string> colourmap_choices_std;
 vector<const char*> colourmap_choices_cstr;
 
+enum ArrowMode { ARROW_SLICEVOL, ARROW_COLOUR, ARROW_CROSSHAIR, N_ARROW_MODES };
+
 
 // commmand-line description and syntax:
 // (used to produce the help page and verify validity of arguments at runtime)
@@ -132,9 +134,9 @@ int colourmap_ID = 0;
 int levels = 64;
 int x_axis, y_axis, slice_axis = 2;
 value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX, scale_image = 1.0;
-bool crosshair = true;
+bool crosshair = true, colorbar = true;
 vector<int> focus (3, 0);  // relative to original image grid
-
+ArrowMode x_arrow_mode = ARROW_SLICEVOL, arrow_mode = x_arrow_mode;
 
 
 inline void set_axes ()
@@ -210,25 +212,58 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
     }
   }
 
-   if (crosshair)
-    encoder.draw_crosshairs (std::round(x_dim - scale_image * (focus[x_axis] - 0.5)), std::round(y_dim - scale_image * (focus[y_axis] - 0.5)));
+  if (crosshair) {
+    int x = std::round(x_dim - image.spacing(x_axis) * (focus[x_axis] + 0.5) / scale);
+    int y = std::round(y_dim - image.spacing(y_axis) * (focus[y_axis] + 0.5) / scale);
+    x = std::max (std::min (x, x_dim-1), 0);
+    y = std::max (std::min (y, y_dim-1), 0);
+    encoder.draw_crosshairs (x,y);
+  }
 
 
   // encode buffer and print out:
   encoder.write();
 
+  if (colorbar) {
+    int cbar_x_dim = std::max(40, (int) std::round(x_dim * 0.2));
+    int cbar_y_dim = std::max(10, (int) std::round(1.f * scale_image));
+    Sixel::Encoder colorbar_encoder (cbar_x_dim, cbar_y_dim, colourmap);
+    for (int x = 0; x < cbar_x_dim; ++x) {
+      value_type val = (value_type) x / std::max(1, cbar_x_dim - 1) / colourmap.scale();
+      for (int y = 0; y < cbar_y_dim; ++y) {
+        colorbar_encoder(x, y, val);
+      }
+    }
+    std::cout << std::endl << VT::CarriageReturn << VT::ClearLine;
+    colorbar_encoder.write();
+    std::cout << " [ " << -colourmap.offset() << " " << 1.0 / colourmap.scale() - colourmap.offset() <<  " ] " << std::endl;
+  }
+
   image.index(0) = focus[0];
   image.index(1) = focus[1];
   image.index(2) = focus[2];
-  std::cout << VT::CarriageReturn << VT::ClearLine << "[ " << focus[0] << " " << focus[1] << " " << focus[2] << " ";
-  for (size_t n = 3; n < image.ndim(); ++n)
-    std::cout << image.index(n) << " ";
-  std::cout << "]: " << image.value();
+  std::cout << VT::CarriageReturn << VT::ClearLine << "[ ";
+  for (int d = 0; d < 3; d++) {
+    if (d == x_axis || d == y_axis) {
+        if (arrow_mode == ARROW_CROSSHAIR) std::cout << VT::TextForegroundYellow;
+        std::cout << VT::TextUnderscore;
+    }
+    else if (arrow_mode == ARROW_SLICEVOL) std::cout << VT::TextForegroundYellow;
+    std::cout << focus[d];
+    std::cout << VT::TextReset;
+    std::cout << " ";
+  }
+  for (size_t n = 3; n < image.ndim(); ++n) {
+    if (n == 3 && arrow_mode == ARROW_SLICEVOL) std::cout << VT::TextForegroundYellow;
+    std::cout << image.index(n);
+    std::cout << VT::TextReset << " ";
+  }
+  std::cout << "]: ";
+  if (arrow_mode == ARROW_COLOUR) std::cout << VT::TextForegroundYellow;
+  std::cout << image.value() << VT::TextReset;
 
   std::cout.flush();
 }
-
-
 
 
 
@@ -242,6 +277,8 @@ void show_help ()
   std::cout << VT::position_cursor_at (row++, 4) << "left/right            previous/next volume";
   std::cout << VT::position_cursor_at (row++, 4) << "a / s / c             axial / sagittal / coronal projection";
   std::cout << VT::position_cursor_at (row++, 4) << "- / +                 zoom out / in";
+  std::cout << VT::position_cursor_at (row++, 4) << "x / <space>           toggle arrow key crosshairs control";
+  std::cout << VT::position_cursor_at (row++, 4) << "b                     toggle arrow key brightness control";
   std::cout << VT::position_cursor_at (row++, 4) << "f                     show / hide crosshairs";
   std::cout << VT::position_cursor_at (row++, 4) << "r                     reset focus";
   std::cout << VT::position_cursor_at (row++, 4) << "left mouse & drag     move focus";
@@ -332,7 +369,7 @@ void run ()
 
   opt = get_options ("crosshairs");
   if (opt.size()) {
-    int x = opt[0][1];
+    int x = opt[0][0];
     int y = opt[0][1];
     if (x<0 || y<0) {
       crosshair = false;
@@ -351,6 +388,7 @@ void run ()
   //CONF option: MRPeekInteractive
   if (get_options ("noninteractive").size() or !MR::File::Config::get_bool ("MRPeekInteractive", true)) {
     display (image, colourmap);
+    std::cout << "\n";
     return;
   }
 
@@ -384,11 +422,39 @@ void run ()
 
       switch (event) {
         case VT::Up:
-        case VT::MouseWheelUp: ++focus[slice_axis]; break;
+        case VT::MouseWheelUp:
+          switch(arrow_mode) {
+            case ARROW_SLICEVOL:  ++focus[slice_axis];   break;
+            case ARROW_CROSSHAIR: ++focus[y_axis]; break;
+            case ARROW_COLOUR:    colourmap.update_scaling (0, -1); break;
+            default: break;
+          } break;
         case VT::Down:
-        case VT::MouseWheelDown: --focus[slice_axis]; break;
-        case VT::Left: if (image.ndim() > 3) {--image.index(3); if (image.index(3) < 0) image.index(3) = image.size(3)-1;} break;
-        case VT::Right: if (image.ndim() > 3) {++image.index(3); if (image.index(3) >= image.size(3)) image.index(3) = 0;} break;
+        case VT::MouseWheelDown:
+          switch(arrow_mode) {
+            case ARROW_SLICEVOL:  --focus[slice_axis];   break;
+            case ARROW_CROSSHAIR: --focus[y_axis]; break;
+            case ARROW_COLOUR:    colourmap.update_scaling (0, 1); break;
+            default: break;
+          } break;
+        case VT::Left:
+          switch(arrow_mode) {
+            case ARROW_SLICEVOL:  if (image.ndim() > 3) {--image.index(3);
+                                                         if (image.index(3) < 0) image.index(3) = image.size(3)-1;}
+                                  break;
+            case ARROW_CROSSHAIR: ++focus[x_axis]; break;
+            case ARROW_COLOUR:    colourmap.update_scaling (-1, 0); break;
+            default: break;
+          } break;
+        case VT::Right:
+          switch(arrow_mode) {
+            case ARROW_SLICEVOL:  if (image.ndim() > 3) {++image.index(3);
+                                                         if (image.index(3) >= image.size(3)) image.index(3) = 0;}
+                                  break;
+            case ARROW_CROSSHAIR: --focus[x_axis]; break;
+            case ARROW_COLOUR:    colourmap.update_scaling (1, 0); break;
+            default: break;
+          } break;
         case 'f': crosshair = !crosshair; std::cout << VT::ClearScreen; break;
         case 'a': slice_axis = 2; std::cout << VT::ClearScreen; break;
         case 's': slice_axis = 0; std::cout << VT::ClearScreen; break;
@@ -397,6 +463,9 @@ void run ()
                   focus[slice_axis] = std::round (image.size(slice_axis)/2); std::cout << VT::ClearScreen; break;
         case '+': scale_image *= 1.1; std::cout << VT::ClearScreen; break;
         case '-': scale_image /= 1.1; std::cout << VT::ClearScreen; break;
+        case ' ':
+        case 'x': arrow_mode = x_arrow_mode = (x_arrow_mode == ARROW_SLICEVOL) ? ARROW_CROSSHAIR : ARROW_SLICEVOL; break;
+        case 'b': arrow_mode = (arrow_mode == ARROW_COLOUR) ? x_arrow_mode : ARROW_COLOUR; std::cout << VT::ClearScreen; break;
         case VT::MouseMoveLeft: focus[x_axis] += xp-x; focus[y_axis] += yp-y; break;
         case VT::Escape: colourmap.invalidate_scaling(); break;
         case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp); break;
