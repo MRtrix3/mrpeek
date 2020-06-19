@@ -113,22 +113,13 @@ namespace MR {
 
         std::string encode (int y0) {
           std::string out;
-          bool is_background = true;
 
           for (int intensity = 0; intensity <= colourmap.maximum(); ++intensity) {
             for (int i = y0*x_dim; i < (y0+6)*x_dim; ++i) {
               // if any voxel in buffer has this intensity, then need to encode the
               // whole row of sixels:
               if (data[i] == intensity) {
-                if (is_background) {
-                  is_background = false;
-                  current = '?';
-                  repeats = x_dim;
-                  commit();
-                  out += "#" + str(intensity) + buffer + '$';
-                }
-                else
-                  out += encode (y0, intensity);
+                out += encode (y0, intensity);
                 break;
               }
             }
