@@ -132,7 +132,7 @@ int colourmap_ID = 0;
 int levels = 64;
 int x_axis, y_axis, slice_axis = 2;
 value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX, scale_image = 1.0;
-bool crosshair = true;
+bool crosshair = true, colorbar = false;
 vector<int> focus (3, 0);  // relative to original image grid
 bool modify_focus = false;
 
@@ -211,12 +211,27 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
     }
   }
 
-   if (crosshair)
+  if (crosshair)
     encoder.draw_crosshairs (std::round(x_dim - scale_image * (focus[x_axis] - 0.5)), std::round(y_dim - scale_image * (focus[y_axis] - 0.5)));
 
 
   // encode buffer and print out:
   encoder.write();
+
+  if (colorbar) {
+    int cbar_x_dim = std::max(20, (int) std::round(x_dim * 0.2));
+    int cbar_y_dim = std::max(2, (int) std::round(1.f * scale_image));
+    Sixel::Encoder colorbar_encoder (cbar_x_dim, cbar_y_dim, colourmap);
+    for (int x = 0; x < cbar_x_dim; ++x) {
+      value_type val = (value_type) x / std::max(1, cbar_x_dim - 1) / colourmap.scale();
+      for (int y = 0; y < cbar_y_dim; ++y) {
+        colorbar_encoder(x, y, val);
+      }
+    }
+    std::cout << std::endl << VT::CarriageReturn << VT::ClearLine;
+    colorbar_encoder.write();
+    std::cout << " [ " << -colourmap.offset() << " " << 1.0 / colourmap.scale() - colourmap.offset() <<  " ] " << std::endl;
+  }
 
   image.index(0) = focus[0];
   image.index(1) = focus[1];
@@ -374,6 +389,7 @@ void run ()
         case '+': scale_image *= 1.1; std::cout << VT::ClearScreen; break;
         case '-': scale_image /= 1.1; std::cout << VT::ClearScreen; break;
         case 'x': modify_focus = !modify_focus; std::cout << VT::ClearScreen; break;
+        case 'b': colorbar = !colorbar; std::cout << VT::ClearScreen; break;
         case VT::MouseMoveLeft: focus[x_axis] += xp-x; focus[y_axis] += yp-y; break;
         case VT::Escape: colourmap.invalidate_scaling(); break;
         case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp); break;
