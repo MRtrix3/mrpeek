@@ -272,8 +272,8 @@ void show_help ()
   VT::position_cursor_at (row++, 4); std::cout << "left/right            previous/next volume";
   VT::position_cursor_at (row++, 4); std::cout << "a / s / c             axial / sagittal / coronal projection";
   VT::position_cursor_at (row++, 4); std::cout << "- / +                 zoom out / in";
-  VT::position_cursor_at (row++, 4); std::cout << "x                     toggle arrow key control of slice/volume and crosshairs";
-  VT::position_cursor_at (row++, 4); std::cout << "b                     toggle arrow key brighness control";
+  VT::position_cursor_at (row++, 4); std::cout << "x / <space>           toggle arrow key crosshairs control";
+  VT::position_cursor_at (row++, 4); std::cout << "b                     toggle arrow key brightness control";
   VT::position_cursor_at (row++, 4); std::cout << "f                     show / hide crosshairs";
   VT::position_cursor_at (row++, 4); std::cout << "r                     reset focus";
   VT::position_cursor_at (row++, 4); std::cout << "left mouse & drag     move focus";
@@ -418,6 +418,7 @@ void run ()
                   focus[slice_axis] = std::round (image.size(slice_axis)/2); std::cout << VT::ClearScreen; break;
         case '+': scale_image *= 1.1; std::cout << VT::ClearScreen; break;
         case '-': scale_image /= 1.1; std::cout << VT::ClearScreen; break;
+        case ' ':
         case 'x': arrow_mode = x_arrow_mode = (x_arrow_mode == ARROW_SLICEVOL) ? ARROW_CROSSHAIR : ARROW_SLICEVOL; break;
         case 'b': arrow_mode = (arrow_mode == ARROW_COLOUR) ? x_arrow_mode : ARROW_COLOUR; std::cout << VT::ClearScreen; break;
         case VT::MouseMoveLeft: focus[x_axis] += xp-x; focus[y_axis] += yp-y; break;
