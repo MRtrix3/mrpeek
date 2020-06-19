@@ -145,7 +145,7 @@ namespace MR {
             if (data[index] == intensity) s |= 32U;
             add (s);
           }
-          commit();
+          commit (true);
           out += "#" + str(intensity) + buffer + '$';
           return out;
         }
@@ -166,7 +166,9 @@ namespace MR {
           current = 255;
         }
 
-        void commit () {
+        void commit (bool is_last = false) {
+          if (is_last && current == 0)
+            return;
           switch (repeats) {
             case 0: break;
             case 3: buffer += char (63+current);
