@@ -221,24 +221,21 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   image.index(0) = focus[0];
   image.index(1) = focus[1];
   image.index(2) = focus[2];
-  std::cout << VT::CarriageReturn << VT::ClearLine << "[ "; //<< focus[0] << " " << focus[1] << " " << focus[2] << " ";
+  std::cout << VT::CarriageReturn << VT::ClearLine << "[ ";
   for (int d = 0; d < 3; d++) {
     if (d == x_axis || d == y_axis) {
-      if (modify_focus) std::cout << VT::TextUnderscore;
-      std::cout << VT::TextReverseColour;
-    } else if (!modify_focus) std::cout << VT::TextUnderscore;
+        if (modify_focus) std::cout << VT::TextForegroundYellow;
+        std::cout << VT::TextUnderscore;
+    }
     std::cout << focus[d];
     std::cout << VT::TextReset;
     std::cout << " ";
   }
   for (size_t n = 3; n < image.ndim(); ++n) {
-    if (n == 3 && !modify_focus)
-      std::cout << VT::TextUnderscore;
     std::cout << image.index(n);
-    std::cout << VT::TextReset;
     std::cout << " ";
   }
-  std::cout << "]: " << image.value();
+  std::cout << "]: " << image.value() << VT::TextReset;
 
   std::cout.flush();
 }
