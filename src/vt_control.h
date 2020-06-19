@@ -17,6 +17,10 @@ namespace MR {
     constexpr const char* CursorOff = "\033[?25l";
     constexpr const char* CursorOn = "\033[?25h";
 
+    constexpr const char* TextUnderscore = "\033[4m";
+    constexpr const char* TextForegroundYellow = "\033[33m";
+    constexpr const char* TextReset = "\033[0m";
+
     constexpr const char* MouseTrackingOn = "\033[?1002h";
     constexpr const char* MouseTrackingOff = "\033[?1002l";
 
