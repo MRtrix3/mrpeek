@@ -193,10 +193,8 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
 
     std::vector<value_type> currentslice (x_dim*y_dim);
     size_t k = 0;
-    for (auto l = Loop ({ size_t(x_axis), size_t(y_axis) })(image_regrid); l; ++l) {
-      value_type pix = image_regrid.value();
-      currentslice[k++] = std::isnan(pix) ? 0 : pix;
-    }
+    for (auto l = Loop ({ size_t(x_axis), size_t(y_axis) })(image_regrid); l; ++l)
+      currentslice[k++] = image_regrid.value();
 
     value_type vmin = percentile(currentslice, pmin);
     value_type vmax = percentile(currentslice, pmax);
@@ -210,8 +208,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
     image_regrid.index(y_axis) = y_dim-1-y;
     for (int x = 0; x < x_dim; ++x) {
       image_regrid.index(x_axis) = x_dim-1-x;
-      value_type pix = image_regrid.value();
-      encoder(x, y, std::isnan(pix) ? 0 : pix);
+      encoder(x, y, image_regrid.value());
     }
   }
 
