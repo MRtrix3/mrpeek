@@ -211,8 +211,8 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   }
 
    if (crosshair) {
-     int x = std::round(x_dim - scale_image * (focus[x_axis] - 0.5));
-     int y = std::round(y_dim - scale_image * (focus[y_axis] - 0.5));
+     int x = std::round(x_dim - 1 - scale_image * (focus[x_axis] + 0.499));
+     int y = std::round(y_dim - 1 - scale_image * (focus[y_axis] + 0.499));
      x = std::max (std::min (x, x_dim-1), 0);
      y = std::max (std::min (y, y_dim-1), 0);
      encoder.draw_crosshairs (x,y);
