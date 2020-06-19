@@ -75,7 +75,7 @@ void usage ()
   + Option ("percentile_range",
             "specify intensity range of the data. The image intensity will be scaled "
             "between the specified minimum and maximum percentile values. "
-            "Defaults are: " + str(DEFAULT_PMIN) + " - " + str(DEFAULT_PMAX))
+            "Defaults are: " + str(DEFAULT_PMIN, 3) + " - " + str(DEFAULT_PMAX, 3))
   +   Argument ("min").type_float()
   +   Argument ("max").type_float()
 
