@@ -236,22 +236,23 @@ void show_help ()
 {
   std::cout << VT::ClearScreen;
   int row = 2;
-  VT::position_cursor_at (row++, 2); std::cout << "mrpeek key bindings:";
+  std::cout << VT::position_cursor_at (row++, 2) << "mrpeek key bindings:";
   row++;
-  VT::position_cursor_at (row++, 4); std::cout << "up/down               previous/next slice";
-  VT::position_cursor_at (row++, 4); std::cout << "left/right            previous/next volume";
-  VT::position_cursor_at (row++, 4); std::cout << "a / s / c             axial / sagittal / coronal projection";
-  VT::position_cursor_at (row++, 4); std::cout << "- / +                 zoom out / in";
-  VT::position_cursor_at (row++, 4); std::cout << "f                     show / hide crosshairs";
-  VT::position_cursor_at (row++, 4); std::cout << "r                     reset focus";
-  VT::position_cursor_at (row++, 4); std::cout << "left mouse & drag     move focus";
-  VT::position_cursor_at (row++, 4); std::cout << "right mouse & drag    adjust brightness / contrast";
-  VT::position_cursor_at (row++, 4); std::cout << "Esc                   reset brightness / contrast";
-  VT::position_cursor_at (row++, 4); std::cout << "1-9                   select colourmap";
+  std::cout << VT::position_cursor_at (row++, 4) << "up/down               previous/next slice";
+  std::cout << VT::position_cursor_at (row++, 4) << "left/right            previous/next volume";
+  std::cout << VT::position_cursor_at (row++, 4) << "a / s / c             axial / sagittal / coronal projection";
+  std::cout << VT::position_cursor_at (row++, 4) << "- / +                 zoom out / in";
+  std::cout << VT::position_cursor_at (row++, 4) << "f                     show / hide crosshairs";
+  std::cout << VT::position_cursor_at (row++, 4) << "r                     reset focus";
+  std::cout << VT::position_cursor_at (row++, 4) << "left mouse & drag     move focus";
+  std::cout << VT::position_cursor_at (row++, 4) << "right mouse & drag    adjust brightness / contrast";
+  std::cout << VT::position_cursor_at (row++, 4) << "Esc                   reset brightness / contrast";
+  std::cout << VT::position_cursor_at (row++, 4) << "1-9                   select colourmap";
+  std::cout << VT::position_cursor_at (row++, 4) << "l                     select number of colourmap levels";
   row++;
-  VT::position_cursor_at (row++, 4); std::cout << "q / Q / Crtl-C        exit mrpeek";
+  std::cout << VT::position_cursor_at (row++, 4) << "q / Q / Crtl-C        exit mrpeek";
   row++;
-  VT::position_cursor_at (row++, 4); std::cout << "press any key to exit help page";
+  std::cout << VT::position_cursor_at (row++, 4) << "press any key to exit help page";
 
 
   std::cout.flush();
@@ -264,6 +265,39 @@ void show_help ()
   std::cout.flush();
 }
 
+
+bool query_int (const std::string& prompt,
+    int& value,
+    int vmin = std::numeric_limits<int>::min(),
+    int vmax = std::numeric_limits<int>::max())
+{
+  std::cout << VT::CarriageReturn << VT::ClearLine << prompt;
+  std::cout.flush();
+
+  int event, x, y;
+  std::string response;
+  while ((event = VT::read_user_input(x, y)) != '\r') {
+    std::this_thread::sleep_for (std::chrono::milliseconds(10));
+    if (event >= '0' && event <= '9') {
+      response += char(event);
+      std::cout << char(event);
+      std::cout.flush();
+    }
+    else if (event == VT::Backspace) {
+      if (response.size()) {
+        response.pop_back();
+        std::cout << VT::move_cursor_left(1) << VT::ClearLineFromCursorRight;
+        std::cout.flush();
+      }
+    }
+  }
+
+  if (response.size()) {
+    value = to<int> (response);
+    return (value >= vmin && value <= vmax);
+  }
+  return false;
+}
 
 
 void run ()
@@ -361,6 +395,13 @@ void run ()
         case VT::MouseMoveLeft: focus[x_axis] += xp-x; focus[y_axis] += yp-y; break;
         case VT::Escape: colourmap.invalidate_scaling(); break;
         case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp); break;
+        case 'l': {
+                    int n;
+                    if (query_int ("select number of levels: ", n, 1, 254)) {
+                      levels = n;
+                      colourmap = Sixel::ColourMap (ColourMap::maps[colourmap_ID], levels);
+                    }
+                  } break;
         case '?': show_help(); break;
 
         default:
