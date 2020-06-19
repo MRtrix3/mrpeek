@@ -375,6 +375,11 @@ void run ()
         std::this_thread::sleep_for (std::chrono::milliseconds(10));
       }
 
+      if (x-xp > 127) xp += 256;
+      if (xp-x > 127) xp -= 256;
+      if (y-yp > 127) yp += 256;
+      if (yp-y > 127) yp -= 256;
+
       need_update = true;
 
       switch (event) {
