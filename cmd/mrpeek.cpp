@@ -226,7 +226,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
 
   if (colorbar) {
     int cbar_x_dim = std::max(40, (int) std::round(x_dim * 0.2));
-    int cbar_y_dim = std::max(10, (int) std::round(1.f * scale_image));
+    int cbar_y_dim = std::max(20, (int) std::round(1.f * scale_image));
     Sixel::Encoder colorbar_encoder (cbar_x_dim, cbar_y_dim, colourmap);
     for (int x = 0; x < cbar_x_dim; ++x) {
       value_type val = (value_type) x / std::max(1, cbar_x_dim - 1) / colourmap.scale();
@@ -235,8 +235,8 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
       }
     }
     std::cout << std::endl << VT::CarriageReturn << VT::ClearLine;
+    std::cout << "[ " << -colourmap.offset() << " " << 1.0 / colourmap.scale() - colourmap.offset() <<  " ] ";
     colorbar_encoder.write();
-    std::cout << " [ " << -colourmap.offset() << " " << 1.0 / colourmap.scale() - colourmap.offset() <<  " ] " << std::endl;
   }
 
   image.index(0) = focus[0];
