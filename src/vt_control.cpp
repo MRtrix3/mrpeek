@@ -16,6 +16,14 @@ namespace MR {
 
     void enter_raw_mode ()
     {
+      if (!isatty (STDOUT_FILENO))
+        if (!freopen ("/dev/tty", "a", stdout))
+          throw Exception ("failed to remap stdout to the terminal");
+
+      if (!isatty (STDIN_FILENO))
+        if (!freopen ("/dev/tty", "r", stdin))
+          throw Exception ("failed to remap stdin to the terminal");
+
       std::cout << CursorOff << MouseTrackingOn;
       std::cout.flush();
 
