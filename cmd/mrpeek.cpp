@@ -241,7 +241,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
     }
     std::cout << std::endl << VT::CarriageReturn << VT::ClearLine;
     colorbar_encoder.write();
-    std::cout << " [ " << -colourmap.offset() << " " << 1.0 / colourmap.scale() - colourmap.offset() <<  " ] " << std::endl;
+    std::cout << " [ " << colourmap.min() << " " << colourmap.max() <<  " ] " << std::endl;
   }
 
   image.index(0) = focus[0];
