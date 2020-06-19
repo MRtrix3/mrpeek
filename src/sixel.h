@@ -8,7 +8,7 @@
 namespace MR {
   namespace Sixel {
 
-    constexpr float BrightnessIncrement = 0.03f;
+    constexpr float BrightnessIncrement = 10.0f;
     constexpr float ContrastIncrement = 0.03;
 
     class ColourMap {
