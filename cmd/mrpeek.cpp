@@ -109,6 +109,8 @@ using value_type = float;
 template <class Container>
 value_type percentile (Container& data, default_type percentile)
 {
+  // replace NaN with 0
+  std::replace_if (data.begin(), data.end(), std::isnan<typename Container::value_type>, 0);
   if (percentile == 100.0) {
     return default_type(*std::max_element (data.begin(), data.end()));
   } else if (percentile == 0.0) {
