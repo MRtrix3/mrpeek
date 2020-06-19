@@ -317,6 +317,7 @@ void run ()
   //CONF option: MRPeekInteractive
   if (get_options ("noninteractive").size() or !MR::File::Config::get_bool ("MRPeekInteractive", true)) {
     display (image, colourmap);
+    std::cout << "\n";
     return;
   }
 
