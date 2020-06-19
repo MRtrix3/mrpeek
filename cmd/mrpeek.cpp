@@ -19,6 +19,8 @@ using namespace App;
 vector<std::string> colourmap_choices_std;
 vector<const char*> colourmap_choices_cstr;
 
+enum ArrowMode { ARROW_SLICEVOL, ARROW_COLOUR, ARROW_CROSSHAIR, N_ARROW_MODES };
+
 
 // commmand-line description and syntax:
 // (used to produce the help page and verify validity of arguments at runtime)
@@ -134,8 +136,7 @@ int x_axis, y_axis, slice_axis = 2;
 value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX, scale_image = 1.0;
 bool crosshair = true, colorbar = false;
 vector<int> focus (3, 0);  // relative to original image grid
-bool modify_focus = false;
-
+ArrowMode arrow_mode = ARROW_SLICEVOL;
 
 
 inline void set_axes ()
@@ -219,8 +220,8 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   encoder.write();
 
   if (colorbar) {
-    int cbar_x_dim = std::max(20, (int) std::round(x_dim * 0.2));
-    int cbar_y_dim = std::max(2, (int) std::round(1.f * scale_image));
+    int cbar_x_dim = std::max(40, (int) std::round(x_dim * 0.2));
+    int cbar_y_dim = std::max(10, (int) std::round(1.f * scale_image));
     Sixel::Encoder colorbar_encoder (cbar_x_dim, cbar_y_dim, colourmap);
     for (int x = 0; x < cbar_x_dim; ++x) {
       value_type val = (value_type) x / std::max(1, cbar_x_dim - 1) / colourmap.scale();
@@ -239,23 +240,25 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   std::cout << VT::CarriageReturn << VT::ClearLine << "[ ";
   for (int d = 0; d < 3; d++) {
     if (d == x_axis || d == y_axis) {
-        if (modify_focus) std::cout << VT::TextForegroundYellow;
+        if (arrow_mode == ARROW_CROSSHAIR) std::cout << VT::TextForegroundYellow;
         std::cout << VT::TextUnderscore;
     }
+    else if (arrow_mode == ARROW_SLICEVOL) std::cout << VT::TextForegroundYellow;
     std::cout << focus[d];
     std::cout << VT::TextReset;
     std::cout << " ";
   }
   for (size_t n = 3; n < image.ndim(); ++n) {
+    if (n == 3 && arrow_mode == ARROW_SLICEVOL) std::cout << VT::TextForegroundYellow;
     std::cout << image.index(n);
-    std::cout << " ";
+    std::cout << VT::TextReset << " ";
   }
-  std::cout << "]: " << image.value() << VT::TextReset;
+  std::cout << "]: ";
+  if (arrow_mode == ARROW_COLOUR) std::cout << VT::TextForegroundYellow;
+  std::cout << image.value() << VT::TextReset;
 
   std::cout.flush();
 }
-
-
 
 
 
@@ -269,7 +272,8 @@ void show_help ()
   VT::position_cursor_at (row++, 4); std::cout << "left/right            previous/next volume";
   VT::position_cursor_at (row++, 4); std::cout << "a / s / c             axial / sagittal / coronal projection";
   VT::position_cursor_at (row++, 4); std::cout << "- / +                 zoom out / in";
-  VT::position_cursor_at (row++, 4); std::cout << "x                     toggle arrow keys between slice/volume and crosshairs";
+  VT::position_cursor_at (row++, 4); std::cout << "x                     select what arrow keys act on from ";
+  VT::position_cursor_at (row++, 4); std::cout << "                        slice/volume, crosshairs, or colour";
   VT::position_cursor_at (row++, 4); std::cout << "f                     show / hide crosshairs";
   VT::position_cursor_at (row++, 4); std::cout << "r                     reset focus";
   VT::position_cursor_at (row++, 4); std::cout << "left mouse & drag     move focus";
@@ -373,13 +377,39 @@ void run ()
 
       switch (event) {
         case VT::Up:
-        case VT::MouseWheelUp: if (modify_focus){ ++focus[y_axis];} else ++focus[slice_axis]; break;
+        case VT::MouseWheelUp:
+          switch(arrow_mode) {
+            case ARROW_SLICEVOL:  ++focus[slice_axis];   break;
+            case ARROW_CROSSHAIR: ++focus[y_axis]; break;
+            case ARROW_COLOUR:    colourmap.update_scaling (0, -1); break;
+            default: break;
+          } break;
         case VT::Down:
-        case VT::MouseWheelDown: if (modify_focus) {--focus[y_axis];} else --focus[slice_axis]; break;
-        case VT::Left: if (modify_focus) {++focus[x_axis];} else
-                          if (image.ndim() > 3) {--image.index(3); if (image.index(3) < 0) image.index(3) = image.size(3)-1;} break;
-        case VT::Right: if (modify_focus) {--focus[x_axis];} else
-                          if (image.ndim() > 3) {++image.index(3); if (image.index(3) >= image.size(3)) image.index(3) = 0;} break;
+        case VT::MouseWheelDown:
+          switch(arrow_mode) {
+            case ARROW_SLICEVOL:  --focus[slice_axis];   break;
+            case ARROW_CROSSHAIR: --focus[y_axis]; break;
+            case ARROW_COLOUR:    colourmap.update_scaling (0, 1); break;
+            default: break;
+          } break;
+        case VT::Left:
+          switch(arrow_mode) {
+            case ARROW_SLICEVOL:  if (image.ndim() > 3) {--image.index(3);
+                                                         if (image.index(3) < 0) image.index(3) = image.size(3)-1;}
+                                  break;
+            case ARROW_CROSSHAIR: ++focus[x_axis]; break;
+            case ARROW_COLOUR:    colourmap.update_scaling (-1, 0); break;
+            default: break;
+          } break;
+        case VT::Right:
+          switch(arrow_mode) {
+            case ARROW_SLICEVOL:  if (image.ndim() > 3) {++image.index(3);
+                                                         if (image.index(3) >= image.size(3)) image.index(3) = 0;}
+                                  break;
+            case ARROW_CROSSHAIR: --focus[x_axis]; break;
+            case ARROW_COLOUR:    colourmap.update_scaling (1, 0); break;
+            default: break;
+          } break;
         case 'f': crosshair = !crosshair; std::cout << VT::ClearScreen; break;
         case 'a': slice_axis = 2; std::cout << VT::ClearScreen; break;
         case 's': slice_axis = 0; std::cout << VT::ClearScreen; break;
@@ -388,7 +418,7 @@ void run ()
                   focus[slice_axis] = std::round (image.size(slice_axis)/2); std::cout << VT::ClearScreen; break;
         case '+': scale_image *= 1.1; std::cout << VT::ClearScreen; break;
         case '-': scale_image /= 1.1; std::cout << VT::ClearScreen; break;
-        case 'x': modify_focus = !modify_focus; std::cout << VT::ClearScreen; break;
+        case 'x': arrow_mode = static_cast<ArrowMode>((arrow_mode + 1) % N_ARROW_MODES); break;
         case 'b': colorbar = !colorbar; std::cout << VT::ClearScreen; break;
         case VT::MouseMoveLeft: focus[x_axis] += xp-x; focus[y_axis] += yp-y; break;
         case VT::Escape: colourmap.invalidate_scaling(); break;
