@@ -134,6 +134,7 @@ int x_axis, y_axis, slice_axis = 2;
 value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX, scale_image = 1.0;
 bool crosshair = true;
 vector<int> focus (3, 0);  // relative to original image grid
+bool modify_focus = false;
 
 
 
@@ -220,9 +221,23 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   image.index(0) = focus[0];
   image.index(1) = focus[1];
   image.index(2) = focus[2];
-  std::cout << VT::CarriageReturn << VT::ClearLine << "[ " << focus[0] << " " << focus[1] << " " << focus[2] << " ";
-  for (size_t n = 3; n < image.ndim(); ++n)
-    std::cout << image.index(n) << " ";
+  std::cout << VT::CarriageReturn << VT::ClearLine << "[ "; //<< focus[0] << " " << focus[1] << " " << focus[2] << " ";
+  for (int d = 0; d < 3; d++) {
+    if (d == x_axis || d == y_axis) {
+      if (modify_focus) std::cout << VT::TextUnderscore;
+      std::cout << VT::TextReverseColour;
+    } else if (!modify_focus) std::cout << VT::TextUnderscore;
+    std::cout << focus[d];
+    std::cout << VT::TextReset;
+    std::cout << " ";
+  }
+  for (size_t n = 3; n < image.ndim(); ++n) {
+    if (n == 3 && !modify_focus)
+      std::cout << VT::TextUnderscore;
+    std::cout << image.index(n);
+    std::cout << VT::TextReset;
+    std::cout << " ";
+  }
   std::cout << "]: " << image.value();
 
   std::cout.flush();
@@ -242,6 +257,7 @@ void show_help ()
   VT::position_cursor_at (row++, 4); std::cout << "left/right            previous/next volume";
   VT::position_cursor_at (row++, 4); std::cout << "a / s / c             axial / sagittal / coronal projection";
   VT::position_cursor_at (row++, 4); std::cout << "- / +                 zoom out / in";
+  VT::position_cursor_at (row++, 4); std::cout << "x                     toggle arrow keys between slice/volume and crosshairs";
   VT::position_cursor_at (row++, 4); std::cout << "f                     show / hide crosshairs";
   VT::position_cursor_at (row++, 4); std::cout << "r                     reset focus";
   VT::position_cursor_at (row++, 4); std::cout << "left mouse & drag     move focus";
@@ -345,11 +361,13 @@ void run ()
 
       switch (event) {
         case VT::Up:
-        case VT::MouseWheelUp: ++focus[slice_axis]; break;
+        case VT::MouseWheelUp: if (modify_focus){ ++focus[y_axis];} else ++focus[slice_axis]; break;
         case VT::Down:
-        case VT::MouseWheelDown: --focus[slice_axis]; break;
-        case VT::Left: if (image.ndim() > 3) {--image.index(3); if (image.index(3) < 0) image.index(3) = image.size(3)-1;} break;
-        case VT::Right: if (image.ndim() > 3) {++image.index(3); if (image.index(3) >= image.size(3)) image.index(3) = 0;} break;
+        case VT::MouseWheelDown: if (modify_focus) {--focus[y_axis];} else --focus[slice_axis]; break;
+        case VT::Left: if (modify_focus) {++focus[x_axis];} else
+                          if (image.ndim() > 3) {--image.index(3); if (image.index(3) < 0) image.index(3) = image.size(3)-1;} break;
+        case VT::Right: if (modify_focus) {--focus[x_axis];} else
+                          if (image.ndim() > 3) {++image.index(3); if (image.index(3) >= image.size(3)) image.index(3) = 0;} break;
         case 'f': crosshair = !crosshair; std::cout << VT::ClearScreen; break;
         case 'a': slice_axis = 2; std::cout << VT::ClearScreen; break;
         case 's': slice_axis = 0; std::cout << VT::ClearScreen; break;
@@ -358,6 +376,7 @@ void run ()
                   focus[slice_axis] = std::round (image.size(slice_axis)/2); std::cout << VT::ClearScreen; break;
         case '+': scale_image *= 1.1; std::cout << VT::ClearScreen; break;
         case '-': scale_image /= 1.1; std::cout << VT::ClearScreen; break;
+        case 'x': modify_focus = !modify_focus; std::cout << VT::ClearScreen; break;
         case VT::MouseMoveLeft: focus[x_axis] += xp-x; focus[y_axis] += yp-y; break;
         case VT::Escape: colourmap.invalidate_scaling(); break;
         case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp); break;
