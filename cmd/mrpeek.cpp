@@ -110,10 +110,8 @@ template <class Container>
 value_type percentile (Container& data, default_type percentile)
 {
   // ignore nan
-  data.erase (std::remove_if (data.begin(), data.end(),
-              [](typename Container::value_type val) {
-                return !std::isfinite(val);
-              }), data.end());
+  auto isnotfinite = [](typename Container::value_type val) { return !std::isfinite(val); };
+  data.erase (std::remove_if (data.begin(), data.end(), isnotfinite), data.end());
   if (percentile == 100.0) {
     return default_type(*std::max_element (data.begin(), data.end()));
   } else if (percentile == 0.0) {
