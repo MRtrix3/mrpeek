@@ -235,7 +235,8 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
       }
     }
     std::cout << std::endl << VT::CarriageReturn << VT::ClearLine;
-    std::cout << "[ " << -colourmap.offset() << " " << 1.0 / colourmap.scale() - colourmap.offset() <<  " ] ";
+    if (arrow_mode == ARROW_COLOUR) std::cout << VT::TextForegroundYellow;
+    std::cout << "[ " << -colourmap.offset() << " " << 1.0 / colourmap.scale() - colourmap.offset() <<  " ] " << VT::TextReset;
     colorbar_encoder.write();
   }
 
@@ -259,8 +260,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
     std::cout << VT::TextReset << " ";
   }
   std::cout << "]: ";
-  if (arrow_mode == ARROW_COLOUR) std::cout << VT::TextForegroundYellow;
-  std::cout << image.value() << VT::TextReset;
+  std::cout << image.value();
 
   std::cout.flush();
 }
