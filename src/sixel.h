@@ -66,36 +66,45 @@ namespace MR {
 
 
 
+    // template parameters set horizontal and vertical grid size
+    template <int gx = 1, int gy = 1>
     class Encoder {
       public:
         Encoder (int x_dim, int y_dim, const ColourMap& colourmap) :
           x_dim (x_dim),
           y_dim (y_dim),
+          gi (0), gj (0),
           // make sure data buffer is a multiple of 6 to avoid overflow:
-          data (x_dim*6*std::ceil(y_dim/6.0), 0),
+          data (gx*x_dim*6*std::ceil(gy*y_dim/6.0), 0),
           colourmap (colourmap),
           current (255),
           repeats (0) { }
 
+        void set_panel (int k) {
+          assert (k < gx*gy);
+          gi = k % gx;
+          gj = k / gx;
+        }
+
         // set value at (x,y), rescaling as per colourmap parameters:
         void operator() (int x, int y, float value) {
           int val = colourmap.rescale (value);
-          data[x+x_dim*y] = val;
+          data[mapxy(x,y)] = val;
         }
 
         // add yellow crosshairs at the specified position:
         void draw_crosshairs (int x0, int y0) {
           for (int x = 0; x < x_dim; ++x)
-            data[x+x_dim*y0] = colourmap.crosshairs();
+            data[mapxy(x,y0)] = colourmap.crosshairs();
           for (int y = 0; y < y_dim; ++y)
-            data[x0+x_dim*y] = colourmap.crosshairs();
+            data[mapxy(x0,y)] = colourmap.crosshairs();
         }
 
         // once slice is fully specified, encode and write to stdout:
         void write () {
           std::string out = VT::SixelStart + colourmap.spec();
 
-          for (int y = 0; y < y_dim; y += 6)
+          for (int y = 0; y < gy*y_dim; y += 6)
             out += encode (y);
 
           out += VT::SixelStop;
@@ -105,17 +114,22 @@ namespace MR {
       private:
 
         int x_dim, y_dim;
+        int gi, gj;
         std::vector<uint8_t> data;
         const ColourMap& colourmap;
         std::string buffer;
         uint8_t current;
         int repeats;
 
+        inline size_t mapxy (int x, int y) const {
+          return x + x_dim*(gi + gx*(y + y_dim*gj));
+        }
+
         std::string encode (int y0) {
           std::string out;
 
           for (int intensity = 0; intensity <= colourmap.maximum(); ++intensity) {
-            for (int i = y0*x_dim; i < (y0+6)*x_dim; ++i) {
+            for (int i = y0*gx*x_dim; i < (y0+6)*gx*x_dim; ++i) {
               // if any voxel in buffer has this intensity, then need to encode the
               // whole row of sixels:
               if (data[i] == intensity) {
@@ -134,14 +148,14 @@ namespace MR {
         {
           std::string out;
           clear();
-          for (int x = 0; x < x_dim; ++x) {
-            int index = x + y0*x_dim;
+          for (int x = 0; x < gx*x_dim; ++x) {
+            int index = x + y0*gx*x_dim;
             uint8_t s = 0;
-            if (data[index] == intensity) s |= 1U; index += x_dim;
-            if (data[index] == intensity) s |= 2U; index += x_dim;
-            if (data[index] == intensity) s |= 4U; index += x_dim;
-            if (data[index] == intensity) s |= 8U; index += x_dim;
-            if (data[index] == intensity) s |= 16U; index += x_dim;
+            if (data[index] == intensity) s |= 1U; index += gx*x_dim;
+            if (data[index] == intensity) s |= 2U; index += gx*x_dim;
+            if (data[index] == intensity) s |= 4U; index += gx*x_dim;
+            if (data[index] == intensity) s |= 8U; index += gx*x_dim;
+            if (data[index] == intensity) s |= 16U; index += gx*x_dim;
             if (data[index] == intensity) s |= 32U;
             add (s);
           }

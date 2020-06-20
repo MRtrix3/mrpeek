@@ -202,7 +202,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
     INFO("reset intensity range to " + str(vmin) + " - " +str(vmax));
   }
 
-  Sixel::Encoder encoder (x_dim, y_dim, colourmap);
+  Sixel::Encoder<> encoder (x_dim, y_dim, colourmap);
 
   for (int y = 0; y < y_dim; ++y) {
     image_regrid.index(y_axis) = y_dim-1-y;
@@ -227,7 +227,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   if (colorbar) {
     int cbar_x_dim = std::max(40, (int) std::round(x_dim * 0.2));
     int cbar_y_dim = std::max(10, (int) std::round(1.f * scale_image));
-    Sixel::Encoder colorbar_encoder (cbar_x_dim, cbar_y_dim, colourmap);
+    Sixel::Encoder<> colorbar_encoder (cbar_x_dim, cbar_y_dim, colourmap);
     for (int x = 0; x < cbar_x_dim; ++x) {
       value_type val = (value_type) x / std::max(1, cbar_x_dim - 1) / colourmap.scale();
       for (int y = 0; y < cbar_y_dim; ++y) {
