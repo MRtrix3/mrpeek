@@ -151,6 +151,33 @@ inline void set_axes ()
 }
 
 
+template <class ImageType> inline void show_focus (ImageType& image)
+{
+  image.index(0) = focus[0];
+  image.index(1) = focus[1];
+  image.index(2) = focus[2];
+  std::cout << VT::CarriageReturn << VT::ClearLine << "[ ";
+  for (int d = 0; d < 3; d++) {
+    if (d == x_axis || d == y_axis) {
+        if (arrow_mode == ARROW_CROSSHAIR) std::cout << VT::TextForegroundYellow;
+        std::cout << VT::TextUnderscore;
+    }
+    else if (arrow_mode == ARROW_SLICEVOL) std::cout << VT::TextForegroundYellow;
+    std::cout << focus[d];
+    std::cout << VT::TextReset;
+    std::cout << " ";
+  }
+  for (size_t n = 3; n < image.ndim(); ++n) {
+    if (n == 3 && arrow_mode == ARROW_SLICEVOL) std::cout << VT::TextForegroundYellow;
+    std::cout << image.index(n);
+    std::cout << VT::TextReset << " ";
+  }
+  std::cout << "]: ";
+  if (arrow_mode == ARROW_COLOUR) std::cout << VT::TextForegroundYellow;
+  std::cout << image.value() << VT::TextReset;
+}
+
+
 
 void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
 {
@@ -240,28 +267,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
     std::cout << " [ " << -colourmap.offset() << " " << 1.0 / colourmap.scale() - colourmap.offset() <<  " ] " << std::endl;
   }
 
-  image.index(0) = focus[0];
-  image.index(1) = focus[1];
-  image.index(2) = focus[2];
-  std::cout << VT::CarriageReturn << VT::ClearLine << "[ ";
-  for (int d = 0; d < 3; d++) {
-    if (d == x_axis || d == y_axis) {
-        if (arrow_mode == ARROW_CROSSHAIR) std::cout << VT::TextForegroundYellow;
-        std::cout << VT::TextUnderscore;
-    }
-    else if (arrow_mode == ARROW_SLICEVOL) std::cout << VT::TextForegroundYellow;
-    std::cout << focus[d];
-    std::cout << VT::TextReset;
-    std::cout << " ";
-  }
-  for (size_t n = 3; n < image.ndim(); ++n) {
-    if (n == 3 && arrow_mode == ARROW_SLICEVOL) std::cout << VT::TextForegroundYellow;
-    std::cout << image.index(n);
-    std::cout << VT::TextReset << " ";
-  }
-  std::cout << "]: ";
-  if (arrow_mode == ARROW_COLOUR) std::cout << VT::TextForegroundYellow;
-  std::cout << image.value() << VT::TextReset;
+  show_focus(image);
 
   std::cout.flush();
 }
@@ -293,25 +299,34 @@ void plot (Image<value_type>& image, int plot_axis)
   for (auto l = Loop ({ size_t(plot_axis) })(image_regrid); l; ++l)
       plotslice[k++] = image_regrid.value();
 
-  Sixel::ColourMap plot_colourmap (ColourMap::maps[0], 2);
+  Sixel::ColourMap plot_colourmap (ColourMap::maps[0], 3);
   value_type vmin = percentile(plotslice, 0);
   value_type vmax = percentile(plotslice, 100);
-  plot_colourmap.set_scaling_min_max (0, 1);
+  plot_colourmap.set_scaling_min_max (0, 2);
 
   Sixel::Encoder encoder (x_dim, y_dim, plot_colourmap);
+  // coordinate axes
+  for (int x = 0; x < x_dim; ++x) encoder(x, y_dim-1, 1);
+  for (int y = 0; y < y_dim; ++y) encoder(0, y, 1);
+
   const int radius = std::max<int>(1, std::round(scale_image));
-  int last_x, last_y;
+  int last_x, last_y, delta_x;
   for (int index = 0; index < plotslice.size(); ++index) {
     int x = x_dim - (float) index / plotslice.size() * x_dim;
     int y = y_dim - (((float) plotslice[index] - vmin) / (vmax - vmin)) * y_dim;
+    // draw +
     for (int r = -radius; r <= radius; ++r)
-      if (y + r < y_dim && y + r >= 0) encoder(x, y+r, 1);
+      if (y + r < y_dim && y + r >= 0) encoder(x, y+r, 2);
     for (int r = -radius; r <= radius; ++r)
-      if (x + r < x_dim && x + r >= 0) encoder(x+r, y, 1);
-    // if (index > 0) { TODO
-    //   plot line from [last_x ... x], [last_y ... y]
-    // }
-    last_x = x; last_y = y;
+      if (x + r < x_dim && x + r >= 0) encoder(x+r, y, 2);
+    // plot line
+    if (index > 0) {
+      assert(last_x >= x);
+      delta_x = last_x - x;
+      for (int dx = 0; dx < delta_x; ++dx)
+        encoder(x+dx, std::round( float(last_y * dx) / delta_x + float(y * (delta_x - dx)) / delta_x), 1);
+    }
+    std::swap(last_x, x); std::swap(last_y, y);
   }
 
   // encode buffer and print out:
@@ -319,6 +334,8 @@ void plot (Image<value_type>& image, int plot_axis)
   encoder.write();
   std::cout << "axis: " << plot_axis << " indices [ 0 : " << plotslice.size() << " ]";
   std::cout << std::endl << VT::CarriageReturn << VT::ClearLine << "min: " << vmin << std::endl;
+
+  show_focus(image);
 
   std::cout.flush();
 }
