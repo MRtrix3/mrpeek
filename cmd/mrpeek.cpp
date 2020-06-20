@@ -314,12 +314,18 @@ void plot (Image<value_type>& image, int plot_axis)
   for (int index = 0; index < plotslice.size(); ++index) {
     int x = x_dim - (float) index / plotslice.size() * x_dim;
     int y = y_dim - (((float) plotslice[index] - vmin) / (vmax - vmin)) * y_dim;
-    // draw +
+    if (index == focus[plot_axis]) {
+      // focus position: draw []
+      for (int r1 = -radius; r1 <= radius; ++r1)
+        for (int r2 = -radius; r2 <= radius; ++r2)
+          if (x + r1 < x_dim && x + r1 >= 0 && y + r2 < y_dim && y + r2 >= 0) encoder(x+r1, y+r2, 1);
+    }
+    // data: draw +
     for (int r = -radius; r <= radius; ++r)
       if (y + r < y_dim && y + r >= 0) encoder(x, y+r, 2);
     for (int r = -radius; r <= radius; ++r)
       if (x + r < x_dim && x + r >= 0) encoder(x+r, y, 2);
-    // plot line
+    // plot line segment
     if (index > 0) {
       assert(last_x >= x);
       delta_x = last_x - x;
@@ -505,8 +511,8 @@ void run ()
         case '-': scale_image /= 1.1; std::cout << VT::ClearScreen; break;
         case ' ':
         case 'x': arrow_mode = x_arrow_mode = (x_arrow_mode == ARROW_SLICEVOL) ? ARROW_CROSSHAIR : ARROW_SLICEVOL; break;
-        case 'b': arrow_mode = (arrow_mode == ARROW_COLOUR) ? x_arrow_mode : ARROW_COLOUR; std::cout << VT::ClearScreen; break;
-        case 'p': do_plot = !do_plot; std::cout << VT::ClearScreen; break;
+        case 'b': if (!do_plot) arrow_mode = (arrow_mode == ARROW_COLOUR) ? x_arrow_mode : ARROW_COLOUR; std::cout << VT::ClearScreen; break;
+        case 'p': do_plot = !do_plot; arrow_mode = x_arrow_mode; std::cout << VT::ClearScreen; break;
         case VT::MouseMoveLeft: focus[x_axis] += xp-x; focus[y_axis] += yp-y; break;
         case VT::Escape: colourmap.invalidate_scaling(); break;
         case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp); break;
