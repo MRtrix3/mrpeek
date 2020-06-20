@@ -242,7 +242,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   image.index(0) = focus[0];
   image.index(1) = focus[1];
   image.index(2) = focus[2];
-  std::cout << VT::CarriageReturn << VT::ClearLine << "[ ";
+  std::cout << std::endl << VT::CarriageReturn << VT::ClearLine << "[ ";
   for (int d = 0; d < 3; d++) {
     if (d == x_axis || d == y_axis) {
         if (arrow_mode == ARROW_CROSSHAIR) std::cout << VT::TextForegroundYellow;
