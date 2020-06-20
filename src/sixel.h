@@ -8,7 +8,7 @@
 namespace MR {
   namespace Sixel {
 
-    constexpr float BrightnessIncrement = 0.03;
+    constexpr float BrightnessIncrement = 10.0f;
     constexpr float ContrastIncrement = 0.03;
 
     class ColourMap {
@@ -45,15 +45,15 @@ namespace MR {
         // set offset * scale parameters to adjust brightness / contrast:
         bool scaling_set () const { return std::isfinite (_offset) && std::isfinite (_scale); }
         void invalidate_scaling () { _offset = _scale = NaN; }
-        void set_scaling (float offset, float scale) { _offset = offset; _scale = scale*num_colours; }
+        void set_scaling (float offset, float scale) { _offset = offset*num_colours; _scale = scale*num_colours; }
         void set_scaling_min_max (float vmin, float vmax) { float dv = vmax - vmin; set_scaling (-vmin/dv, 1.0f/dv ); }
         void update_scaling (int x, int y) {
           float mid = _offset + 0.5f*_scale;
-          mid += BrightnessIncrement * y / _scale;
-          _scale = std::exp (std::log(_scale) + ContrastIncrement * x);
+          mid += BrightnessIncrement * x * _scale;
+          _scale = std::exp (std::log(_scale) - ContrastIncrement * y);
           _offset = mid - 0.5f*_scale;
         }
-        const float offset () const { return _offset; }
+        const float offset () const { return _offset/num_colours; }
         const float scale () const { return _scale/num_colours; }
         const float min () const { return -offset() / scale(); }
         const float max () const { return (1.f - offset()) / scale(); }
