@@ -137,6 +137,7 @@ value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX, scale_image = 1.0;
 bool crosshair = true, colorbar = true;
 vector<int> focus (3, 0);  // relative to original image grid
 ArrowMode x_arrow_mode = ARROW_SLICEVOL, arrow_mode = x_arrow_mode;
+bool do_plot = false;
 
 
 inline void set_axes ()
@@ -266,6 +267,63 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
 }
 
 
+void plot (Image<value_type>& image, int plot_axis)
+{
+  set_axes();
+
+  Header header_target (image);
+  Adapter::Reslice<Interp::Nearest, Image<value_type>> image_regrid(image, header_target, Adapter::NoTransform, Adapter::AutoOverSample); // out_of_bounds_value
+
+  const int x_dim = std::max(100.f, std::max(std::max(image.size(0), image.size(1)), image.size(2)) * scale_image);
+  const int y_dim = std::round((float) x_dim / 1.618033);
+
+  for (int n = 0; n < 3; ++n) {
+    if (focus[n] < 0) focus[n] = 0;
+    if (focus[n] >= image.size(n)) focus[n] = image.size(n)-1;
+  }
+
+  for (int n = 0; n < 3; ++n)
+    image_regrid.index(n) = focus[n];
+  for (size_t n = 3; n < image.ndim(); ++n)
+    image_regrid.index(n) = image.index(n);
+  image_regrid.index(plot_axis) = 0;
+
+  std::vector<value_type> plotslice (image_regrid.size(plot_axis));
+  size_t k = 0;
+  for (auto l = Loop ({ size_t(plot_axis) })(image_regrid); l; ++l)
+      plotslice[k++] = image_regrid.value();
+
+  Sixel::ColourMap plot_colourmap (ColourMap::maps[0], 2);
+  value_type vmin = percentile(plotslice, 0);
+  value_type vmax = percentile(plotslice, 100);
+  plot_colourmap.set_scaling_min_max (0, 1);
+
+  Sixel::Encoder encoder (x_dim, y_dim, plot_colourmap);
+  const int radius = std::max<int>(1, std::round(scale_image));
+  int last_x, last_y;
+  for (int index = 0; index < plotslice.size(); ++index) {
+    int x = x_dim - (float) index / plotslice.size() * x_dim;
+    int y = y_dim - (((float) plotslice[index] - vmin) / (vmax - vmin)) * y_dim;
+    for (int r = -radius; r <= radius; ++r)
+      if (y + r < y_dim && y + r >= 0) encoder(x, y+r, 1);
+    for (int r = -radius; r <= radius; ++r)
+      if (x + r < x_dim && x + r >= 0) encoder(x+r, y, 1);
+    // if (index > 0) { TODO
+    //   plot line from [last_x ... x], [last_y ... y]
+    // }
+    last_x = x; last_y = y;
+  }
+
+  // encode buffer and print out:
+  std::cout << "max: " << vmax << std::endl << VT::CarriageReturn;
+  encoder.write();
+  std::cout << "axis: " << plot_axis << " indices [ 0 : " << plotslice.size() << " ]";
+  std::cout << std::endl << VT::CarriageReturn << VT::ClearLine << "min: " << vmin << std::endl;
+
+  std::cout.flush();
+}
+
+
 
 void show_help ()
 {
@@ -285,6 +343,7 @@ void show_help ()
   VT::position_cursor_at (row++, 4); std::cout << "right mouse & drag    adjust brightness / contrast";
   VT::position_cursor_at (row++, 4); std::cout << "Esc                   reset brightness / contrast";
   VT::position_cursor_at (row++, 4); std::cout << "1-9                   select colourmap";
+  VT::position_cursor_at (row++, 4); std::cout << "p                     intensity plot along the slice direction";
   row++;
   VT::position_cursor_at (row++, 4); std::cout << "q / Q / Crtl-C        exit mrpeek";
   row++;
@@ -373,7 +432,10 @@ void run ()
       while ((event = VT::read_user_input(x, y)) == 0) {
         if (need_update) {
           std::cout << VT::CursorHome;
-          display (image, colourmap);
+          if (do_plot)
+            plot (image, slice_axis);
+          else
+            display (image, colourmap);
           need_update = false;
         }
         std::this_thread::sleep_for (std::chrono::milliseconds(10));
@@ -427,6 +489,7 @@ void run ()
         case ' ':
         case 'x': arrow_mode = x_arrow_mode = (x_arrow_mode == ARROW_SLICEVOL) ? ARROW_CROSSHAIR : ARROW_SLICEVOL; break;
         case 'b': arrow_mode = (arrow_mode == ARROW_COLOUR) ? x_arrow_mode : ARROW_COLOUR; std::cout << VT::ClearScreen; break;
+        case 'p': do_plot = !do_plot; std::cout << VT::ClearScreen; break;
         case VT::MouseMoveLeft: focus[x_axis] += xp-x; focus[y_axis] += yp-y; break;
         case VT::Escape: colourmap.invalidate_scaling(); break;
         case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp); break;
