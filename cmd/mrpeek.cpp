@@ -150,15 +150,11 @@ inline void set_axes ()
 }
 
 
-
-void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
+template <class ImageType>
+Header regrid_header (ImageType& image, float scale)
 {
-  set_axes();
-
   Header header_target (image);
   float new_voxel_size = 1.0;
-  float scale = std::min (std::min (image.spacing(0), image.spacing(1)), image.spacing(2)) / scale_image;
-
   default_type original_extent;
   for (int d = 0; d < 3; ++d) {
     if (d == slice_axis)
@@ -174,7 +170,21 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
     header_target.spacing(d) = new_voxel_size;
   }
 
-  Adapter::Reslice<Interp::Nearest, Image<value_type>> image_regrid(image, header_target, Adapter::NoTransform, Adapter::AutoOverSample); // out_of_bounds_value
+  return header_target;
+}
+
+template <class ImageType>
+using Reslicer = Adapter::Reslice<Interp::Nearest, ImageType>;
+
+
+
+void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
+{
+  set_axes();
+  float scale = std::min (std::min (image.spacing(0), image.spacing(1)), image.spacing(2)) / scale_image;
+
+  //Adapter::Reslice<Interp::Nearest, Image<value_type>> image_regrid (image, regrid_header(image, scale), Adapter::NoTransform, Adapter::AutoOverSample); // out_of_bounds_value
+  auto image_regrid = Adapter::make<Reslicer> (image, regrid_header(image, scale));
 
   int x_dim = image_regrid.size(x_axis);
   int y_dim = image_regrid.size(y_axis);
@@ -204,23 +214,31 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
 
   if (orthoview) {
     int backup_slice_axis = slice_axis;
-    
-    Sixel::Encoder<3> encoder (std::max(image_regrid.size(0), image_regrid.size(1)), 
-                               std::max(image_regrid.size(1), image_regrid.size(2)), colourmap);
+
+    // calculate panel dimensions
+    slice_axis = 2; set_axes();
+    auto tmp_regrid1 = regrid_header(image, scale);
+    int panel_x_dim = std::max(tmp_regrid1.size(0), tmp_regrid1.size(1));
+    slice_axis = 0; set_axes();
+    auto tmp_regrid2 = regrid_header(image, scale);
+    int panel_y_dim = std::max(tmp_regrid2.size(0), tmp_regrid2.size(1));
+
+    Sixel::Encoder<3> encoder (panel_x_dim, panel_y_dim, colourmap);
     
     for (slice_axis = 0; slice_axis < 3; ++slice_axis)
     {
       set_axes();
-      x_dim = image_regrid.size(x_axis);
-      y_dim = image_regrid.size(y_axis);
+      auto image_regrid1 = Adapter::make<Reslicer> (image, regrid_header(image, scale));
+      x_dim = image_regrid1.size(x_axis);
+      y_dim = image_regrid1.size(y_axis);
       encoder.set_panel(slice_axis);
 
-      image_regrid.index(slice_axis) = focus[slice_axis];
+      image_regrid1.index(slice_axis) = focus[slice_axis];
       for (int y = 0; y < y_dim; ++y) {
-        image_regrid.index(y_axis) = y_dim-1-y;
+        image_regrid1.index(y_axis) = y_dim-1-y;
         for (int x = 0; x < x_dim; ++x) {
-          image_regrid.index(x_axis) = x_dim-1-x;
-          encoder(x, y, image_regrid.value());
+          image_regrid1.index(x_axis) = x_dim-1-x;
+          encoder(x, y, image_regrid1.value());
         }
       }
     
