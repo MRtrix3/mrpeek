@@ -227,22 +227,8 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   // encode buffer and print out:
   encoder.write();
 
-  if (colorbar) {
-    int cbar_x_dim = std::max(40, (int) std::round(x_dim * 0.2));
-    int cbar_y_dim = std::max(20, (int) std::round(1.f * scale_image));
-    Sixel::Encoder colorbar_encoder (cbar_x_dim, cbar_y_dim, colourmap);
-    for (int x = 0; x < cbar_x_dim; ++x) {
-      value_type val = (value_type) x / std::max(1, cbar_x_dim - 1) / colourmap.scale();
-      for (int y = 0; y < cbar_y_dim; ++y) {
-        colorbar_encoder(x, y, val);
-      }
-    }
-    std::cout << std::endl << VT::CarriageReturn << VT::ClearLine;
-    if (arrow_mode == ARROW_COLOUR) std::cout << VT::TextForegroundYellow;
-    std::cout << " [ " << colourmap.min() << " " << colourmap.max() <<  " ] " << VT::TextReset;
-    colorbar_encoder.write();
-  }
 
+  // print focus and pixel value
   image.index(0) = focus[0];
   image.index(1) = focus[1];
   image.index(2) = focus[2];
@@ -264,6 +250,20 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   }
   std::cout << "]: ";
   std::cout << image.value();
+
+  // print colourbar
+  int cbar_x_dim = std::max(40, (int) std::round(x_dim * 0.2));
+  int cbar_y_dim = std::max(20, (int) std::round(1.f * scale_image));
+  Sixel::Encoder colorbar_encoder (cbar_x_dim, cbar_y_dim, colourmap);
+  for (int x = 0; x < cbar_x_dim; ++x) {
+    value_type val = (value_type) x / std::max(1, cbar_x_dim - 1) / colourmap.scale();
+    for (int y = 0; y < cbar_y_dim; ++y) {
+      colorbar_encoder(x, y, val);
+    }
+  }
+  if (arrow_mode == ARROW_COLOUR) std::cout << VT::TextForegroundYellow;
+  std::cout << "          [ " << colourmap.min() << " " << colourmap.max() <<  " ] " << VT::TextReset;
+  colorbar_encoder.write();
 
   std::cout.flush();
 }
