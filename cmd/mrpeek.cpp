@@ -232,6 +232,10 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
       auto image_regrid1 = Adapter::make<Reslicer> (image, regrid_header(image, scale));
       x_dim = image_regrid1.size(x_axis);
       y_dim = image_regrid1.size(y_axis);
+      // recentring
+      int dx = (panel_x_dim - x_dim) / 2;
+      int dy = (panel_y_dim - y_dim) / 2;
+
       encoder.set_panel(slice_axis);
 
       image_regrid1.index(slice_axis) = focus[slice_axis];
@@ -239,7 +243,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
         image_regrid1.index(y_axis) = y_dim-1-y;
         for (int x = 0; x < x_dim; ++x) {
           image_regrid1.index(x_axis) = x_dim-1-x;
-          encoder(x, y, image_regrid1.value());
+          encoder(x+dx, y+dy, image_regrid1.value());
         }
       }
     
@@ -248,7 +252,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
         int y = std::round(y_dim - image.spacing(y_axis) * (focus[y_axis] + 0.5) / scale);
         x = std::max (std::min (x, x_dim-1), 0);
         y = std::max (std::min (y, y_dim-1), 0);
-        encoder.draw_crosshairs (x,y);
+        encoder.draw_crosshairs (x+dx, y+dy);
       }
     }
     slice_axis = backup_slice_axis;
