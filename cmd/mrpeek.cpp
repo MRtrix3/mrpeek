@@ -221,6 +221,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
     x = std::max (std::min (x, x_dim-1), 0);
     y = std::max (std::min (y, y_dim-1), 0);
     encoder.draw_crosshairs (x,y);
+    encoder.draw_colourbar ();
   }
 
 
@@ -251,19 +252,10 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   std::cout << "]: ";
   std::cout << image.value();
 
-  // print colourbar
-  int cbar_x_dim = std::max(40, (int) std::round(x_dim * 0.2));
-  int cbar_y_dim = std::max(20, (int) std::round(1.f * scale_image));
-  Sixel::Encoder colorbar_encoder (cbar_x_dim, cbar_y_dim, colourmap);
-  for (int x = 0; x < cbar_x_dim; ++x) {
-    value_type val = (value_type) x / std::max(1, cbar_x_dim - 1) / colourmap.scale();
-    for (int y = 0; y < cbar_y_dim; ++y) {
-      colorbar_encoder(x, y, val);
-    }
-  }
+  std::cout << "               [ ";
   if (arrow_mode == ARROW_COLOUR) std::cout << VT::TextForegroundYellow;
-  std::cout << "          [ " << colourmap.min() << " " << colourmap.max() <<  " ] " << VT::TextReset;
-  colorbar_encoder.write();
+  std::cout << colourmap.min() << " " << colourmap.max() << VT::TextReset;
+  std::cout << " ]";
 
   std::cout.flush();
 }
