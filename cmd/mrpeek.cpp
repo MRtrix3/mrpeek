@@ -75,7 +75,7 @@ void usage ()
   + Option ("percentile_range",
             "specify intensity range of the data. The image intensity will be scaled "
             "between the specified minimum and maximum percentile values. "
-            "Defaults are: " + str(DEFAULT_PMIN) + " - " + str(DEFAULT_PMAX))
+            "Defaults are: " + str(DEFAULT_PMIN, 3) + " - " + str(DEFAULT_PMAX, 3))
   +   Argument ("min").type_float()
   +   Argument ("max").type_float()
 
@@ -109,6 +109,9 @@ using value_type = float;
 template <class Container>
 value_type percentile (Container& data, default_type percentile)
 {
+  // ignore nan
+  auto isnotfinite = [](typename Container::value_type val) { return !std::isfinite(val); };
+  data.erase (std::remove_if (data.begin(), data.end(), isnotfinite), data.end());
   if (percentile == 100.0) {
     return default_type(*std::max_element (data.begin(), data.end()));
   } else if (percentile == 0.0) {
@@ -291,7 +294,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
     }
     std::cout << std::endl << VT::CarriageReturn << VT::ClearLine;
     colorbar_encoder.write();
-    std::cout << " [ " << -colourmap.offset() << " " << 1.0 / colourmap.scale() - colourmap.offset() <<  " ] " << std::endl;
+    std::cout << " [ " << colourmap.min() << " " << colourmap.max() <<  " ] " << std::endl;
   }
 
   image.index(0) = focus[0];
