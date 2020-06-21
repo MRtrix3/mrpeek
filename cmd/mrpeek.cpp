@@ -142,6 +142,8 @@ vector<int> focus (3, 0);  // relative to original image grid
 ArrowMode x_arrow_mode = ARROW_SLICEVOL, arrow_mode = x_arrow_mode;
 
 
+// Supporting functions for display
+//
 inline void set_axes ()
 {
   switch (slice_axis) {
@@ -151,7 +153,6 @@ inline void set_axes ()
     default: throw Exception ("invalid axis specifier");
   }
 }
-
 
 template <class ImageType>
 Header regrid_header (ImageType& image, float scale)
@@ -181,14 +182,14 @@ using Reslicer = Adapter::Reslice<Interp::Nearest, ImageType>;
 
 
 
+// Show the main image,
+// run repeatedly to update display.
 void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
 {
   set_axes();
   float scale = std::min (std::min (image.spacing(0), image.spacing(1)), image.spacing(2)) / scale_image;
 
-  //Adapter::Reslice<Interp::Nearest, Image<value_type>> image_regrid (image, regrid_header(image, scale), Adapter::NoTransform, Adapter::AutoOverSample); // out_of_bounds_value
   auto image_regrid = Adapter::make<Reslicer> (image, regrid_header(image, scale));
-
   int x_dim = image_regrid.size(x_axis);
   int y_dim = image_regrid.size(y_axis);
 
@@ -197,13 +198,10 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
     if (focus[n] >= image.size(n)) focus[n] = image.size(n)-1;
   }
 
-
   image_regrid.index(slice_axis) = focus[slice_axis];
-
 
   if (!colourmap.scaling_set()) {
     // reset scaling:
-
     std::vector<value_type> currentslice (x_dim*y_dim);
     size_t k = 0;
     for (auto l = Loop ({ size_t(x_axis), size_t(y_axis) })(image_regrid); l; ++l)
@@ -254,11 +252,10 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
       }
     }
     slice_axis = backup_slice_axis;
-    image_regrid.index(slice_axis) = focus[slice_axis];
 
     // encode buffer and print out:
     encoder.write();
-  } 
+  }
   else {
     Sixel::Encoder<> encoder (x_dim, y_dim, colourmap);
   
