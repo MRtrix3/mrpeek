@@ -298,23 +298,32 @@ void plot (Image<value_type>& image, int plot_axis)
   image_regrid.index(plot_axis) = 0;
 
   std::vector<value_type> plotslice (image_regrid.size(plot_axis));
+  std::vector<value_type> plotslice_finite (image_regrid.size(plot_axis));
   size_t k = 0;
-  for (auto l = Loop ({ size_t(plot_axis) })(image_regrid); l; ++l)
-      plotslice[k++] = image_regrid.value();
+  for (auto l = Loop ({ size_t(plot_axis) })(image_regrid); l; ++l) {
+    plotslice[k] = image_regrid.value(); plotslice_finite[k] = plotslice[k];
+    ++k;
+  }
+  value_type vmin = percentile(plotslice_finite, 0); // non-finite values removed
+  value_type vmax = percentile(plotslice_finite, 100);
 
   Sixel::ColourMap plot_colourmap (ColourMap::maps[0], 3);
-  value_type vmin = percentile(plotslice, 0);
-  value_type vmax = percentile(plotslice, 100);
   plot_colourmap.set_scaling_min_max (0, 2);
-
   Sixel::Encoder encoder (x_dim, y_dim, plot_colourmap);
+
   // coordinate axes
   for (int x = 0; x < x_dim; ++x) encoder(x, y_dim-1, 1);
   for (int y = 0; y < y_dim; ++y) encoder(0, y, 1);
 
   const int radius = std::max<int>(1, std::round(scale_image));
   int last_x, last_y, delta_x;
+  bool connect_dots = false;
   for (int index = 0; index < plotslice.size(); ++index) {
+    // ignore non-finite point, don't connect neighbouring data
+    if (!std::isfinite(plotslice[index])) {
+      connect_dots = false;
+      continue;
+    }
     int x = x_dim - (float) index / plotslice.size() * x_dim;
     int y = y_dim - (((float) plotslice[index] - vmin) / (vmax - vmin)) * y_dim;
     if (index == focus[plot_axis]) {
@@ -329,13 +338,14 @@ void plot (Image<value_type>& image, int plot_axis)
     for (int r = -radius; r <= radius; ++r)
       if (x + r < x_dim && x + r >= 0) encoder(x+r, y, 2);
     // plot line segment
-    if (index > 0) {
+    if (connect_dots) {
       assert(last_x >= x);
       delta_x = last_x - x;
       for (int dx = 0; dx < delta_x; ++dx)
         encoder(x+dx, std::round( float(last_y * dx) / delta_x + float(y * (delta_x - dx)) / delta_x), 1);
     }
-    std::swap(last_x, x); std::swap(last_y, y);
+    connect_dots = true;
+    last_x = x; last_y = y;
   }
 
   // encode buffer and print out:
