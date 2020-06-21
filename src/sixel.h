@@ -46,7 +46,7 @@ namespace MR {
         bool scaling_set () const { return std::isfinite (_offset) && std::isfinite (_scale); }
         void invalidate_scaling () { _offset = _scale = NaN; }
         void set_scaling (float offset, float scale) { _offset = offset*num_colours; _scale = scale*num_colours; }
-        void set_scaling_min_max (float vmin, float vmax) { set_scaling (-vmin, 1.0f / (vmax - vmin)); }
+        void set_scaling_min_max (float vmin, float vmax) { float dv = vmax - vmin; set_scaling (-vmin/dv, 1.0f/dv ); }
         void update_scaling (int x, int y) {
           float mid = (num_colours*(0.5f - BrightnessIncrement*x) - _offset) / _scale;
           _scale = std::exp (std::log(_scale) - ContrastIncrement * y);
@@ -54,6 +54,8 @@ namespace MR {
         }
         const float offset () const { return _offset/num_colours; }
         const float scale () const { return _scale/num_colours; }
+        const float min () const { return -offset() / scale(); }
+        const float max () const { return (1.f - offset()) / scale(); }
 
       private:
         int num_colours;
