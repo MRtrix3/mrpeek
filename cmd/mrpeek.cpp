@@ -577,6 +577,17 @@ void run ()
                       colourmap.set_scaling (offset, scale);
                     }
                   } break;
+        case 'p': {
+                    int n;
+                    if (query_int ("select plot axis [0 ... "+str(image.ndim()-1)+"]: ", n, 0, image.ndim()-1)) {
+                      do_plot = true;
+                      arrow_mode = x_arrow_mode;
+                      plot_axis = n;
+                    } else {
+                      do_plot = false;
+                    }
+                    std::cout << VT::ClearScreen;
+                  } break;
         case '?': show_help(); break;
 
         default:
