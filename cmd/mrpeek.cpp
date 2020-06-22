@@ -65,6 +65,10 @@ void usage ()
             "select slice to display")
   +   Argument ("number").type_integer(0)
 
+  + Option ("orthoview",
+            "display three orthogonal or a single plane. Default is true.")
+  +   Argument ("yesno").type_bool()
+
   + Option ("intensity_range",
             "specify intensity range of the data. The image intensity will be scaled "
             "between the specified minimum and maximum intensity values. "
@@ -97,8 +101,9 @@ void usage ()
             "scale the image size by the supplied factor")
     + Argument ("factor").type_float()
 
-  + Option ("noninteractive",
-            "disable interactive mode");
+  + Option ("interactive",
+            "interactive mode. Default is true.")
+  +   Argument ("yesno").type_bool();
 }
 
 
@@ -137,7 +142,7 @@ int colourmap_ID = 0;
 int levels = 64;
 int x_axis, y_axis, slice_axis = 2;
 value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX, scale_image = 1.0;
-bool crosshair = true, colorbar = true, orthoview = true;
+bool crosshair = true, colorbar = true, orthoview = true, interactive = true;
 vector<int> focus (3, 0);  // relative to original image grid
 ArrowMode x_arrow_mode = ARROW_SLICEVOL, arrow_mode = x_arrow_mode;
 
@@ -254,7 +259,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
         y = std::max (std::min (y, y_dim-1), 0);
         encoder.draw_crosshairs (x+dx, y+dy);
       }
-      encoder.draw_boundingbox (slice_axis == backup_slice_axis);
+      encoder.draw_boundingbox (interactive && slice_axis == backup_slice_axis);
     }
     slice_axis = backup_slice_axis;
 
@@ -280,7 +285,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
       encoder.draw_crosshairs (x,y);
     }
 
-    encoder.draw_boundingbox (true);
+    encoder.draw_boundingbox (interactive);
 
     // encode buffer and print out:
     encoder.write();
@@ -442,6 +447,9 @@ void run ()
     }
   }
 
+  //CONF option: MRPeekOrthoView
+  orthoview = get_option_value ("orthoview", MR::File::Config::get_bool ("MRPeekOrthoView", orthoview));
+
   //CONF option: MRPeekScaleImage
   scale_image = get_option_value ("scale_image", MR::File::Config::get_float ("MRPeekScaleImage", scale_image));
   if (scale_image <= 0)
@@ -449,7 +457,8 @@ void run ()
   INFO("scale_image: " + str(scale_image));
 
   //CONF option: MRPeekInteractive
-  if (get_options ("noninteractive").size() or !MR::File::Config::get_bool ("MRPeekInteractive", true)) {
+  if (!interactive or !get_option_value ("interactive", MR::File::Config::get_bool ("MRPeekInteractive", true))) {
+    interactive = false;
     display (image, colourmap);
     std::cout << "\n";
     return;
