@@ -259,6 +259,9 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
         y = std::max (std::min (y, y_dim-1), 0);
         encoder.draw_crosshairs (x+dx, y+dy);
       }
+
+      if (slice_axis == 2) encoder.draw_colourbar ();
+
       encoder.draw_boundingbox (interactive && slice_axis == backup_slice_axis);
     }
     slice_axis = backup_slice_axis;
@@ -285,31 +288,19 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
       encoder.draw_crosshairs (x,y);
     }
 
+    encoder.draw_colourbar ();
+
     encoder.draw_boundingbox (interactive);
 
     // encode buffer and print out:
     encoder.write();
   }
 
-  if (colorbar) {
-    int cbar_x_dim = std::max(40, (int) std::round(x_dim * 0.2));
-    int cbar_y_dim = std::max(10, (int) std::round(1.f * scale_image));
-    Sixel::Encoder<> colorbar_encoder (cbar_x_dim, cbar_y_dim, colourmap);
-    for (int x = 0; x < cbar_x_dim; ++x) {
-      value_type val = (value_type) x / std::max(1, cbar_x_dim - 1) / colourmap.scale();
-      for (int y = 0; y < cbar_y_dim; ++y) {
-        colorbar_encoder(x, y, val);
-      }
-    }
-    std::cout << std::endl << VT::CarriageReturn << VT::ClearLine;
-    colorbar_encoder.write();
-    std::cout << " [ " << colourmap.min() << " " << colourmap.max() <<  " ] " << std::endl;
-  }
-
+  // print focus and pixel value
   image.index(0) = focus[0];
   image.index(1) = focus[1];
   image.index(2) = focus[2];
-  std::cout << VT::CarriageReturn << VT::ClearLine << "[ ";
+  std::cout << std::endl << VT::CarriageReturn << VT::ClearLine << "[ ";
   for (int d = 0; d < 3; d++) {
     if (d == x_axis || d == y_axis) {
         if (arrow_mode == ARROW_CROSSHAIR) std::cout << VT::TextForegroundYellow;
@@ -326,8 +317,12 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
     std::cout << VT::TextReset << " ";
   }
   std::cout << "]: ";
+  std::cout << image.value();
+
+  std::cout << "               [ ";
   if (arrow_mode == ARROW_COLOUR) std::cout << VT::TextForegroundYellow;
-  std::cout << image.value() << VT::TextReset;
+  std::cout << colourmap.min() << " " << colourmap.max() << VT::TextReset;
+  std::cout << " ]";
 
   std::cout.flush();
 }
