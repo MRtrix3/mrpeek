@@ -26,13 +26,16 @@ namespace MR {
                 str(std::round(colour[1]))+";"+
                 str(std::round(colour[2]));
             }
-            specifier += "#"+str(num_colours+1)+";2;100;100;0$\n";
+            specifier += "#"+str(num_colours+1)+";2;100;100;0";    // crosshair
+            specifier += "#"+str(num_colours+2)+";2;30;30;30";     // boundingbox
+            specifier += "#"+str(num_colours+3)+";2;55;55;40$\n";  // boundingbox highlight
           }
 
         const std::string& spec () const { return specifier; }
-        const int maximum () const { return num_colours+1; }
+        const int maximum () const { return num_colours+3; }
         const int range () const { return num_colours; }
         const int crosshairs() const { return num_colours+1; }
+        const int boundingbox(bool highlight = false) const { return num_colours+2+int(highlight); }
 
 
         // apply rescaling from floating-point value to clamped rescaled
@@ -101,6 +104,18 @@ namespace MR {
             data[mapxy(x0,y)] = colourmap.crosshairs();
         }
 
+        // add yellow crosshairs at the specified position:
+        void draw_boundingbox (bool highlight = false) {
+          for (int x = 0; x < x_dim; ++x) {
+            data[mapxy(x,0)] = colourmap.boundingbox(highlight);
+            data[mapxy(x,y_dim-1)] = colourmap.boundingbox(highlight);
+          }
+          for (int y = 0; y < y_dim; ++y) {
+            data[mapxy(0,y)] = colourmap.boundingbox(highlight);
+            data[mapxy(x_dim-1,y)] = colourmap.boundingbox(highlight);
+          }
+        }
+
         // once slice is fully specified, encode and write to stdout:
         void write () {
           std::string out = VT::SixelStart + colourmap.spec();
@@ -123,6 +138,8 @@ namespace MR {
         int repeats;
 
         inline size_t mapxy (int x, int y) const {
+          assert (x < x_dim);
+          assert (y < y_dim);
           return x + x_dim*(gi + gx*(y + y_dim*gj));
         }
 

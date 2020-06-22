@@ -254,6 +254,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
         y = std::max (std::min (y, y_dim-1), 0);
         encoder.draw_crosshairs (x+dx, y+dy);
       }
+      encoder.draw_boundingbox (slice_axis == backup_slice_axis);
     }
     slice_axis = backup_slice_axis;
 
@@ -278,6 +279,8 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
       y = std::max (std::min (y, y_dim-1), 0);
       encoder.draw_crosshairs (x,y);
     }
+
+    encoder.draw_boundingbox (true);
 
     // encode buffer and print out:
     encoder.write();
