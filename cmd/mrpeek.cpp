@@ -65,6 +65,10 @@ void usage ()
             "select slice to display")
   +   Argument ("number").type_integer(0)
 
+  + Option ("orthoview",
+            "display three orthogonal or a single plane. Default is true.")
+  +   Argument ("yesno").type_bool()
+
   + Option ("intensity_range",
             "specify intensity range of the data. The image intensity will be scaled "
             "between the specified minimum and maximum intensity values. "
@@ -97,8 +101,9 @@ void usage ()
             "scale the image size by the supplied factor")
     + Argument ("factor").type_float()
 
-  + Option ("noninteractive",
-            "disable interactive mode");
+  + Option ("interactive",
+            "interactive mode. Default is true.")
+  +   Argument ("yesno").type_bool();
 }
 
 
@@ -137,11 +142,13 @@ int colourmap_ID = 0;
 int levels = 64;
 int x_axis, y_axis, slice_axis = 2;
 value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX, scale_image = 1.0;
-bool crosshair = true, colorbar = true;
+bool crosshair = true, colorbar = true, orthoview = true, interactive = true;
 vector<int> focus (3, 0);  // relative to original image grid
 ArrowMode x_arrow_mode = ARROW_SLICEVOL, arrow_mode = x_arrow_mode;
 
 
+// Supporting functions for display
+//
 inline void set_axes ()
 {
   switch (slice_axis) {
@@ -152,16 +159,11 @@ inline void set_axes ()
   }
 }
 
-
-
-void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
+template <class ImageType>
+Header regrid_header (ImageType& image, float scale)
 {
-  set_axes();
-
   Header header_target (image);
   float new_voxel_size = 1.0;
-  float scale = std::min (std::min (image.spacing(0), image.spacing(1)), image.spacing(2)) / scale_image;
-
   default_type original_extent;
   for (int d = 0; d < 3; ++d) {
     if (d == slice_axis)
@@ -177,23 +179,34 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
     header_target.spacing(d) = new_voxel_size;
   }
 
-  Adapter::Reslice<Interp::Nearest, Image<value_type>> image_regrid(image, header_target, Adapter::NoTransform, Adapter::AutoOverSample); // out_of_bounds_value
+  return header_target;
+}
 
-  const int x_dim = image_regrid.size(x_axis);
-  const int y_dim = image_regrid.size(y_axis);
+template <class ImageType>
+using Reslicer = Adapter::Reslice<Interp::Nearest, ImageType>;
+
+
+
+// Show the main image,
+// run repeatedly to update display.
+void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
+{
+  set_axes();
+  float scale = std::min (std::min (image.spacing(0), image.spacing(1)), image.spacing(2)) / scale_image;
+
+  auto image_regrid = Adapter::make<Reslicer> (image, regrid_header(image, scale));
+  int x_dim = image_regrid.size(x_axis);
+  int y_dim = image_regrid.size(y_axis);
 
   for (int n = 0; n < 3; ++n) {
     if (focus[n] < 0) focus[n] = 0;
     if (focus[n] >= image.size(n)) focus[n] = image.size(n)-1;
   }
 
-
   image_regrid.index(slice_axis) = focus[slice_axis];
-
 
   if (!colourmap.scaling_set()) {
     // reset scaling:
-
     std::vector<value_type> currentslice (x_dim*y_dim);
     size_t k = 0;
     for (auto l = Loop ({ size_t(x_axis), size_t(y_axis) })(image_regrid); l; ++l)
@@ -205,29 +218,83 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
     INFO("reset intensity range to " + str(vmin) + " - " +str(vmax));
   }
 
-  Sixel::Encoder encoder (x_dim, y_dim, colourmap);
+  if (orthoview) {
+    int backup_slice_axis = slice_axis;
 
-  for (int y = 0; y < y_dim; ++y) {
-    image_regrid.index(y_axis) = y_dim-1-y;
-    for (int x = 0; x < x_dim; ++x) {
-      image_regrid.index(x_axis) = x_dim-1-x;
-      encoder(x, y, image_regrid.value());
+    // calculate panel dimensions
+    slice_axis = 2; set_axes();
+    auto tmp_regrid1 = regrid_header(image, scale);
+    int panel_x_dim = std::max(tmp_regrid1.size(0), tmp_regrid1.size(1));
+    slice_axis = 0; set_axes();
+    auto tmp_regrid2 = regrid_header(image, scale);
+    int panel_y_dim = std::max(tmp_regrid2.size(0), tmp_regrid2.size(1));
+
+    Sixel::Encoder<3> encoder (panel_x_dim, panel_y_dim, colourmap);
+
+    for (slice_axis = 0; slice_axis < 3; ++slice_axis)
+    {
+      set_axes();
+      auto image_regrid1 = Adapter::make<Reslicer> (image, regrid_header(image, scale));
+      x_dim = image_regrid1.size(x_axis);
+      y_dim = image_regrid1.size(y_axis);
+      // recentring
+      int dx = (panel_x_dim - x_dim) / 2;
+      int dy = (panel_y_dim - y_dim) / 2;
+
+      encoder.set_panel(slice_axis);
+
+      image_regrid1.index(slice_axis) = focus[slice_axis];
+      for (int y = 0; y < y_dim; ++y) {
+        image_regrid1.index(y_axis) = y_dim-1-y;
+        for (int x = 0; x < x_dim; ++x) {
+          image_regrid1.index(x_axis) = x_dim-1-x;
+          encoder(x+dx, y+dy, image_regrid1.value());
+        }
+      }
+
+      if (crosshair) {
+        int x = std::round(x_dim - image.spacing(x_axis) * (focus[x_axis] + 0.5) / scale);
+        int y = std::round(y_dim - image.spacing(y_axis) * (focus[y_axis] + 0.5) / scale);
+        x = std::max (std::min (x, x_dim-1), 0);
+        y = std::max (std::min (y, y_dim-1), 0);
+        encoder.draw_crosshairs (x+dx, y+dy);
+      }
+
+      if (slice_axis == 2) encoder.draw_colourbar ();
+
+      encoder.draw_boundingbox (interactive && slice_axis == backup_slice_axis);
     }
-  }
+    slice_axis = backup_slice_axis;
 
-  if (crosshair) {
-    int x = std::round(x_dim - image.spacing(x_axis) * (focus[x_axis] + 0.5) / scale);
-    int y = std::round(y_dim - image.spacing(y_axis) * (focus[y_axis] + 0.5) / scale);
-    x = std::max (std::min (x, x_dim-1), 0);
-    y = std::max (std::min (y, y_dim-1), 0);
-    encoder.draw_crosshairs (x,y);
+    // encode buffer and print out:
+    encoder.write();
+  }
+  else {
+    Sixel::Encoder<> encoder (x_dim, y_dim, colourmap);
+
+    for (int y = 0; y < y_dim; ++y) {
+      image_regrid.index(y_axis) = y_dim-1-y;
+      for (int x = 0; x < x_dim; ++x) {
+        image_regrid.index(x_axis) = x_dim-1-x;
+        encoder(x, y, image_regrid.value());
+      }
+    }
+
+    if (crosshair) {
+      int x = std::round(x_dim - image.spacing(x_axis) * (focus[x_axis] + 0.5) / scale);
+      int y = std::round(y_dim - image.spacing(y_axis) * (focus[y_axis] + 0.5) / scale);
+      x = std::max (std::min (x, x_dim-1), 0);
+      y = std::max (std::min (y, y_dim-1), 0);
+      encoder.draw_crosshairs (x,y);
+    }
+
     encoder.draw_colourbar ();
+
+    encoder.draw_boundingbox (interactive);
+
+    // encode buffer and print out:
+    encoder.write();
   }
-
-
-  // encode buffer and print out:
-  encoder.write();
-
 
   // print focus and pixel value
   image.index(0) = focus[0];
@@ -271,6 +338,7 @@ void show_help ()
   std::cout << VT::position_cursor_at (row++, 4) << "up/down               previous/next slice";
   std::cout << VT::position_cursor_at (row++, 4) << "left/right            previous/next volume";
   std::cout << VT::position_cursor_at (row++, 4) << "a / s / c             axial / sagittal / coronal projection";
+  std::cout << VT::position_cursor_at (row++, 4) << "o                     toggle orthoview";
   std::cout << VT::position_cursor_at (row++, 4) << "- / +                 zoom out / in";
   std::cout << VT::position_cursor_at (row++, 4) << "x / <space>           toggle arrow key crosshairs control";
   std::cout << VT::position_cursor_at (row++, 4) << "b                     toggle arrow key brightness control";
@@ -374,6 +442,9 @@ void run ()
     }
   }
 
+  //CONF option: MRPeekOrthoView
+  orthoview = get_option_value ("orthoview", MR::File::Config::get_bool ("MRPeekOrthoView", orthoview));
+
   //CONF option: MRPeekScaleImage
   scale_image = get_option_value ("scale_image", MR::File::Config::get_float ("MRPeekScaleImage", scale_image));
   if (scale_image <= 0)
@@ -381,7 +452,8 @@ void run ()
   INFO("scale_image: " + str(scale_image));
 
   //CONF option: MRPeekInteractive
-  if (get_options ("noninteractive").size() or !MR::File::Config::get_bool ("MRPeekInteractive", true)) {
+  if (!interactive or !get_option_value ("interactive", MR::File::Config::get_bool ("MRPeekInteractive", true))) {
+    interactive = false;
     display (image, colourmap);
     std::cout << "\n";
     return;
@@ -454,6 +526,7 @@ void run ()
         case 'a': slice_axis = 2; std::cout << VT::ClearScreen; break;
         case 's': slice_axis = 0; std::cout << VT::ClearScreen; break;
         case 'c': slice_axis = 1; std::cout << VT::ClearScreen; break;
+        case 'o': orthoview = !orthoview; std::cout << VT::ClearScreen; break;
         case 'r': focus[x_axis] = std::round (image.size(x_axis)/2); focus[x_axis] = std::round (image.size(x_axis)/2);
                   focus[slice_axis] = std::round (image.size(slice_axis)/2); std::cout << VT::ClearScreen; break;
         case '+': scale_image *= 1.1; std::cout << VT::ClearScreen; break;
