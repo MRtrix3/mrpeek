@@ -489,21 +489,21 @@ void run ()
 
       switch (event) {
         case VT::Up:
-        case VT::MouseWheelUp:
           switch(arrow_mode) {
             case ARROW_SLICEVOL:  ++focus[slice_axis];   break;
             case ARROW_CROSSHAIR: ++focus[y_axis]; break;
             case ARROW_COLOUR:    colourmap.update_scaling (0, -1); break;
             default: break;
           } break;
+        case VT::MouseWheelUp: ++focus[slice_axis]; break;
         case VT::Down:
-        case VT::MouseWheelDown:
           switch(arrow_mode) {
             case ARROW_SLICEVOL:  --focus[slice_axis];   break;
             case ARROW_CROSSHAIR: --focus[y_axis]; break;
             case ARROW_COLOUR:    colourmap.update_scaling (0, 1); break;
             default: break;
           } break;
+        case VT::MouseWheelDown: --focus[slice_axis]; break;
         case VT::Left:
           switch(arrow_mode) {
             case ARROW_SLICEVOL:  if (image.ndim() > 3) {--image.index(3);
