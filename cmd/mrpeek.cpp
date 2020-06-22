@@ -265,6 +265,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
       encoder.draw_boundingbox (interactive && slice_axis == backup_slice_axis);
     }
     slice_axis = backup_slice_axis;
+    set_axes();
 
     // encode buffer and print out:
     encoder.write();
