@@ -120,8 +120,8 @@ namespace MR {
           const int h = 20, w = 90;
           if (x_dim < 2*w || y_dim < 2*h)
             return;
-          int y1 = y_dim-h-1, y0 = y1-h-1;
-          int x1 = x_dim-h-1, x0 = x1-w-1;
+          int y1 = y_dim-4, y0 = y1-h-1;
+          int x1 = x_dim-4, x0 = x1-w-1;
           for (int y = y0; y <= y1; y++) {
             for (int x = x0; x <= x1; x++) {
               int val = (x-x0) * colourmap.range() / w;
