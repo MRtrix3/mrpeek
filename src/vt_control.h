@@ -1,6 +1,8 @@
 #ifndef __VT_CODES_H__
 #define __VT_CODES_H__
 
+#include <sstream>
+
 namespace MR {
   namespace VT {
 
@@ -9,6 +11,7 @@ namespace MR {
     constexpr const char* RestoreScreen = "\033[?47l";
     constexpr const char* CursorHome = "\033[H";
     constexpr const char* ClearLine = "\033[2K";
+    constexpr const char* ClearLineFromCursorRight = "\033[0K";
     constexpr const char* CarriageReturn = "\r";
 
     constexpr const char* SixelStart = "\033Pq$";
@@ -26,6 +29,7 @@ namespace MR {
 
     constexpr char Escape = '\033';
     constexpr char CtrlC = '\x03';
+    constexpr char Backspace = '\x7F';
     constexpr int Up = 0x0101;
     constexpr int Down = 0x0102;
     constexpr int Right = 0x0103;
@@ -49,9 +53,17 @@ namespace MR {
 
     constexpr inline int Ctrl (int c) { return c & 0x1F; }
 
-    inline void position_cursor_at (int row, int column)
+    inline std::string position_cursor_at (int row, int column)
     {
-      std::cout << "\033[" << row << ";" << column << "H";
+      std::ostringstream stream;
+      stream << "\033[" << row << ";" << column << "H";
+      return stream.str();
+    }
+    inline std::string move_cursor_left (int n)
+    {
+      std::ostringstream stream;
+      stream << "\033[" << n << "D";
+      return stream.str();
     }
 
 

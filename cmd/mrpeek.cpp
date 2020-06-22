@@ -225,7 +225,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
     int panel_y_dim = std::max(tmp_regrid2.size(0), tmp_regrid2.size(1));
 
     Sixel::Encoder<3> encoder (panel_x_dim, panel_y_dim, colourmap);
-    
+
     for (slice_axis = 0; slice_axis < 3; ++slice_axis)
     {
       set_axes();
@@ -246,7 +246,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
           encoder(x+dx, y+dy, image_regrid1.value());
         }
       }
-    
+
       if (crosshair) {
         int x = std::round(x_dim - image.spacing(x_axis) * (focus[x_axis] + 0.5) / scale);
         int y = std::round(y_dim - image.spacing(y_axis) * (focus[y_axis] + 0.5) / scale);
@@ -262,7 +262,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   }
   else {
     Sixel::Encoder<> encoder (x_dim, y_dim, colourmap);
-  
+
     for (int y = 0; y < y_dim; ++y) {
       image_regrid.index(y_axis) = y_dim-1-y;
       for (int x = 0; x < x_dim; ++x) {
@@ -270,7 +270,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
         encoder(x, y, image_regrid.value());
       }
     }
-  
+
     if (crosshair) {
       int x = std::round(x_dim - image.spacing(x_axis) * (focus[x_axis] + 0.5) / scale);
       int y = std::round(y_dim - image.spacing(y_axis) * (focus[y_axis] + 0.5) / scale);
@@ -278,7 +278,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
       y = std::max (std::min (y, y_dim-1), 0);
       encoder.draw_crosshairs (x,y);
     }
-  
+
     // encode buffer and print out:
     encoder.write();
   }
@@ -330,25 +330,26 @@ void show_help ()
 {
   std::cout << VT::ClearScreen;
   int row = 2;
-  VT::position_cursor_at (row++, 2); std::cout << "mrpeek key bindings:";
+  std::cout << VT::position_cursor_at (row++, 2) << "mrpeek key bindings:";
   row++;
-  VT::position_cursor_at (row++, 4); std::cout << "up/down               previous/next slice";
-  VT::position_cursor_at (row++, 4); std::cout << "left/right            previous/next volume";
-  VT::position_cursor_at (row++, 4); std::cout << "a / s / c             axial / sagittal / coronal projection";
-  VT::position_cursor_at (row++, 4); std::cout << "o                     toggle orthoview";
-  VT::position_cursor_at (row++, 4); std::cout << "- / +                 zoom out / in";
-  VT::position_cursor_at (row++, 4); std::cout << "x / <space>           toggle arrow key crosshairs control";
-  VT::position_cursor_at (row++, 4); std::cout << "b                     toggle arrow key brightness control";
-  VT::position_cursor_at (row++, 4); std::cout << "f                     show / hide crosshairs";
-  VT::position_cursor_at (row++, 4); std::cout << "r                     reset focus";
-  VT::position_cursor_at (row++, 4); std::cout << "left mouse & drag     move focus";
-  VT::position_cursor_at (row++, 4); std::cout << "right mouse & drag    adjust brightness / contrast";
-  VT::position_cursor_at (row++, 4); std::cout << "Esc                   reset brightness / contrast";
-  VT::position_cursor_at (row++, 4); std::cout << "1-9                   select colourmap";
+  std::cout << VT::position_cursor_at (row++, 4) << "up/down               previous/next slice";
+  std::cout << VT::position_cursor_at (row++, 4) << "left/right            previous/next volume";
+  std::cout << VT::position_cursor_at (row++, 4) << "a / s / c             axial / sagittal / coronal projection";
+  std::cout << VT::position_cursor_at (row++, 4) << "o                     toggle orthoview";
+  std::cout << VT::position_cursor_at (row++, 4) << "- / +                 zoom out / in";
+  std::cout << VT::position_cursor_at (row++, 4) << "x / <space>           toggle arrow key crosshairs control";
+  std::cout << VT::position_cursor_at (row++, 4) << "b                     toggle arrow key brightness control";
+  std::cout << VT::position_cursor_at (row++, 4) << "f                     show / hide crosshairs";
+  std::cout << VT::position_cursor_at (row++, 4) << "r                     reset focus";
+  std::cout << VT::position_cursor_at (row++, 4) << "left mouse & drag     move focus";
+  std::cout << VT::position_cursor_at (row++, 4) << "right mouse & drag    adjust brightness / contrast";
+  std::cout << VT::position_cursor_at (row++, 4) << "Esc                   reset brightness / contrast";
+  std::cout << VT::position_cursor_at (row++, 4) << "1-9                   select colourmap";
+  std::cout << VT::position_cursor_at (row++, 4) << "l                     select number of colourmap levels";
   row++;
-  VT::position_cursor_at (row++, 4); std::cout << "q / Q / Crtl-C        exit mrpeek";
+  std::cout << VT::position_cursor_at (row++, 4) << "q / Q / Crtl-C        exit mrpeek";
   row++;
-  VT::position_cursor_at (row++, 4); std::cout << "press any key to exit help page";
+  std::cout << VT::position_cursor_at (row++, 4) << "press any key to exit help page";
 
 
   std::cout.flush();
@@ -361,6 +362,39 @@ void show_help ()
   std::cout.flush();
 }
 
+
+bool query_int (const std::string& prompt,
+    int& value,
+    int vmin = std::numeric_limits<int>::min(),
+    int vmax = std::numeric_limits<int>::max())
+{
+  std::cout << VT::CarriageReturn << VT::ClearLine << prompt;
+  std::cout.flush();
+
+  int event, x, y;
+  std::string response;
+  while ((event = VT::read_user_input(x, y)) != '\r') {
+    std::this_thread::sleep_for (std::chrono::milliseconds(10));
+    if (event >= '0' && event <= '9') {
+      response += char(event);
+      std::cout << char(event);
+      std::cout.flush();
+    }
+    else if (event == VT::Backspace) {
+      if (response.size()) {
+        response.pop_back();
+        std::cout << VT::move_cursor_left(1) << VT::ClearLineFromCursorRight;
+        std::cout.flush();
+      }
+    }
+  }
+
+  if (response.size()) {
+    value = to<int> (response);
+    return (value >= vmin && value <= vmax);
+  }
+  return false;
+}
 
 
 void run ()
@@ -439,6 +473,11 @@ void run ()
         std::this_thread::sleep_for (std::chrono::milliseconds(10));
       }
 
+      if (x-xp > 127) xp += 256;
+      if (xp-x > 127) xp -= 256;
+      if (y-yp > 127) yp += 256;
+      if (yp-y > 127) yp -= 256;
+
       need_update = true;
 
       switch (event) {
@@ -491,6 +530,16 @@ void run ()
         case VT::MouseMoveLeft: focus[x_axis] += xp-x; focus[y_axis] += yp-y; break;
         case VT::Escape: colourmap.invalidate_scaling(); break;
         case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp); break;
+        case 'l': {
+                    int n;
+                    if (query_int ("select number of levels: ", n, 1, 254)) {
+                      levels = n;
+                      float offset = colourmap.offset();
+                      float scale = colourmap.scale();
+                      colourmap = Sixel::ColourMap (ColourMap::maps[colourmap_ID], levels);
+                      colourmap.set_scaling (offset, scale);
+                    }
+                  } break;
         case '?': show_help(); break;
 
         default:
