@@ -140,7 +140,7 @@ value_type percentile (Container& data, default_type percentile)
 // These will need to be moved into a struct/class eventually...
 int colourmap_ID = 0;
 int levels = 64;
-int x_axis, y_axis, slice_axis = 2;
+int x_axis, y_axis, slice_axis = 2, vol_axis = -1;
 value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX, scale_image = 1.0;
 bool crosshair = true, colorbar = true, orthoview = true, interactive = true;
 vector<int> focus (3, 0);  // relative to original image grid
@@ -219,7 +219,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   }
 
   if (orthoview) {
-    int backup_slice_axis = slice_axis;
+    const int backup_slice_axis = slice_axis, backup_x_axis = x_axis, backup_y_axis = y_axis;
 
     // calculate panel dimensions
     slice_axis = 2; set_axes();
@@ -264,6 +264,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
 
       encoder.draw_boundingbox (interactive && slice_axis == backup_slice_axis);
     }
+    x_axis = backup_x_axis; y_axis = backup_y_axis;
     slice_axis = backup_slice_axis;
 
     // encode buffer and print out:
@@ -300,29 +301,39 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   image.index(0) = focus[0];
   image.index(1) = focus[1];
   image.index(2) = focus[2];
-  std::cout << std::endl << VT::CarriageReturn << VT::ClearLine << "[ ";
+  std::cout << std::endl << VT::CarriageReturn << VT::ClearLine;
+
+  std::cout << "index: [ ";
   for (int d = 0; d < 3; d++) {
-    if (d == x_axis || d == y_axis) {
-        if (arrow_mode == ARROW_CROSSHAIR) std::cout << VT::TextForegroundYellow;
-        std::cout << VT::TextUnderscore;
-    }
-    else if (arrow_mode == ARROW_SLICEVOL) std::cout << VT::TextForegroundYellow;
+    if (d == x_axis) {if (arrow_mode == ARROW_CROSSHAIR) std::cout << "\u2194" << VT::TextForegroundYellow; std::cout << VT::TextUnderscore; }
+    else if (d == y_axis) {if (arrow_mode == ARROW_CROSSHAIR) std::cout << "\u2195" << VT::TextForegroundYellow; std::cout << VT::TextUnderscore; }
+    else {if (arrow_mode == ARROW_SLICEVOL) std::cout << "\u2195" << VT::TextForegroundYellow; }
     std::cout << focus[d];
     std::cout << VT::TextReset;
     std::cout << " ";
   }
   for (size_t n = 3; n < image.ndim(); ++n) {
-    if (n == 3 && arrow_mode == ARROW_SLICEVOL) std::cout << VT::TextForegroundYellow;
+    if (n == vol_axis && arrow_mode == ARROW_SLICEVOL) std::cout << "\u2194" << VT::TextForegroundYellow;
     std::cout << image.index(n);
     std::cout << VT::TextReset << " ";
   }
-  std::cout << "]: ";
-  std::cout << image.value();
+  std::cout << "] ";
 
-  std::cout << "               [ ";
+  std::cout << "| value: " << image.value();
+  std::cout << " [ ";
   if (arrow_mode == ARROW_COLOUR) std::cout << VT::TextForegroundYellow;
   std::cout << colourmap.min() << " " << colourmap.max() << VT::TextReset;
-  std::cout << " ]";
+  std::cout << " ] ";
+
+  if (orthoview) {
+    std::cout << "| active: ";
+    switch (slice_axis) {
+      case (0): std::cout << VT::TextUnderscore << "s" << VT::TextReset << "agittal "; break;
+      case (1): std::cout << VT::TextUnderscore << "c" << VT::TextReset << "oronal "; break;
+      case (2): std::cout << VT::TextUnderscore << "a" << VT::TextReset << "xial "; break;
+      default: break;
+    };
+  }
 
   std::cout.flush();
 }
@@ -339,6 +350,7 @@ void show_help ()
   std::cout << VT::position_cursor_at (row++, 4) << "left/right            previous/next volume";
   std::cout << VT::position_cursor_at (row++, 4) << "a / s / c             axial / sagittal / coronal projection";
   std::cout << VT::position_cursor_at (row++, 4) << "o                     toggle orthoview";
+  std::cout << VT::position_cursor_at (row++, 4) << "v                     choose volume dimension";
   std::cout << VT::position_cursor_at (row++, 4) << "- / +                 zoom out / in";
   std::cout << VT::position_cursor_at (row++, 4) << "x / <space>           toggle arrow key crosshairs control";
   std::cout << VT::position_cursor_at (row++, 4) << "b                     toggle arrow key brightness control";
@@ -405,6 +417,7 @@ void run ()
   auto image = Image<value_type>::open (argument[0]);
 
   slice_axis = get_option_value ("axis", slice_axis);
+  vol_axis = image.ndim() > 3 ? 3 : -1;
   focus[slice_axis] = get_option_value ("slice", image.size(slice_axis)/2);
   set_axes();
   focus[x_axis] = std::round (image.size(x_axis)/2);
@@ -506,8 +519,9 @@ void run ()
           } break;
         case VT::Left:
           switch(arrow_mode) {
-            case ARROW_SLICEVOL:  if (image.ndim() > 3) {--image.index(3);
-                                                         if (image.index(3) < 0) image.index(3) = image.size(3)-1;}
+            case ARROW_SLICEVOL:  if (vol_axis >= 0) {
+                                    --image.index(vol_axis);
+                                    if (image.index(vol_axis) < 0) image.index(vol_axis) = image.size(vol_axis) - 1; }
                                   break;
             case ARROW_CROSSHAIR: ++focus[x_axis]; break;
             case ARROW_COLOUR:    colourmap.update_scaling (-1, 0); break;
@@ -515,14 +529,16 @@ void run ()
           } break;
         case VT::Right:
           switch(arrow_mode) {
-            case ARROW_SLICEVOL:  if (image.ndim() > 3) {++image.index(3);
-                                                         if (image.index(3) >= image.size(3)) image.index(3) = 0;}
+            case ARROW_SLICEVOL:  if (vol_axis >= 0) {
+                                    ++image.index(vol_axis);
+                                    if (image.index(vol_axis) >= image.size(vol_axis)) image.index(vol_axis) = 0; }
                                   break;
             case ARROW_CROSSHAIR: --focus[x_axis]; break;
             case ARROW_COLOUR:    colourmap.update_scaling (1, 0); break;
             default: break;
           } break;
         case 'f': crosshair = !crosshair; std::cout << VT::ClearScreen; break;
+        case 'v': if (image.ndim() > 3) {vol_axis = (vol_axis - 2) % (image.ndim() - 3) + 3; } break;
         case 'a': slice_axis = 2; std::cout << VT::ClearScreen; break;
         case 's': slice_axis = 0; std::cout << VT::ClearScreen; break;
         case 'c': slice_axis = 1; std::cout << VT::ClearScreen; break;
