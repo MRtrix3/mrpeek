@@ -245,7 +245,6 @@ namespace MR {
       std::cout << VT::CursorHome << VT::SixelStart << "#0;2;0;0;0$#0?!200-" << VT::SixelStop;
       VT::get_cursor_position (row,col);
       need_newline_after_sixel = (row==1);
-      VAR(need_newline_after_sixel);
     }
 
   }
