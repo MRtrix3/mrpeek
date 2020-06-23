@@ -293,8 +293,8 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
 
       encoder.draw_boundingbox (interactive && slice_axis == backup_slice_axis);
     }
-    x_axis = backup_x_axis; y_axis = backup_y_axis;
     slice_axis = backup_slice_axis;
+    x_axis = backup_x_axis; y_axis = backup_y_axis;
 
     // encode buffer and print out:
     encoder.write();
@@ -325,6 +325,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
     // encode buffer and print out:
     encoder.write();
   }
+
 
   show_focus(image);
   std::cout << " [ ";
@@ -651,7 +652,7 @@ void run ()
         case 'a': slice_axis = 2; std::cout << VT::ClearScreen; break;
         case 's': slice_axis = 0; std::cout << VT::ClearScreen; break;
         case 'c': slice_axis = 1; std::cout << VT::ClearScreen; break;
-        case 'o': orthoview = !orthoview; std::cout << VT::ClearScreen; break;
+        case 'o': if (!do_plot) orthoview = !orthoview; std::cout << VT::ClearScreen; break;
         case 'r': focus[x_axis] = std::round (image.size(x_axis)/2); focus[x_axis] = std::round (image.size(x_axis)/2);
                   focus[slice_axis] = std::round (image.size(slice_axis)/2); std::cout << VT::ClearScreen; break;
         case '+': scale_image *= 1.1; std::cout << VT::ClearScreen; break;
@@ -673,14 +674,10 @@ void run ()
                     }
                   } break;
         case 'p': {
-                    int n;
-                    if (query_int ("select plot axis [0 ... "+str(image.ndim()-1)+"]: ", n, 0, image.ndim()-1)) {
+                    if (query_int ("select plot axis [0 ... "+str(image.ndim()-1)+"]: ", plot_axis, 0, image.ndim()-1)) {
                       do_plot = true;
                       arrow_mode = x_arrow_mode;
-                      plot_axis = n;
-                    } else {
-                      do_plot = false;
-                    }
+                    } else { do_plot = false; }
                     std::cout << VT::ClearScreen;
                   } break;
         case '?': show_help(); break;
