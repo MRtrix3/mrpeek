@@ -416,7 +416,11 @@ void run ()
     throw Exception("slice " + str(focus[slice_axis]) + " exceeds image size (" + str(image.size(slice_axis)) + ") in axis " + str(slice_axis));
 
   colourmap_ID = get_option_value ("colourmap", colourmap_ID);
-  levels = get_option_value ("levels", levels);
+
+  //CONF option: MRPeekColourmapLevels
+  //CONF default: 32
+  //CONF set the default number of colourmap levels to use within mrpeek
+  levels = get_option_value ("levels", File::Config::get_int ("MRPeekColourmapLevels", levels));
 
   Sixel::ColourMap colourmap (ColourMap::maps[colourmap_ID], levels);
 
@@ -444,16 +448,16 @@ void run ()
   }
 
   //CONF option: MRPeekOrthoView
-  orthoview = get_option_value ("orthoview", MR::File::Config::get_bool ("MRPeekOrthoView", orthoview));
+  orthoview = get_option_value ("orthoview", File::Config::get_bool ("MRPeekOrthoView", orthoview));
 
   //CONF option: MRPeekScaleImage
-  scale_image = get_option_value ("scale_image", MR::File::Config::get_float ("MRPeekScaleImage", scale_image));
+  scale_image = get_option_value ("scale_image", File::Config::get_float ("MRPeekScaleImage", scale_image));
   if (scale_image <= 0)
     throw Exception ("scale_image value needs to be positive");
   INFO("scale_image: " + str(scale_image));
 
   //CONF option: MRPeekInteractive
-  if (!interactive or !get_option_value ("interactive", MR::File::Config::get_bool ("MRPeekInteractive", true))) {
+  if (!interactive or !get_option_value ("interactive", File::Config::get_bool ("MRPeekInteractive", true))) {
     interactive = false;
     display (image, colourmap);
     std::cout << "\n";
