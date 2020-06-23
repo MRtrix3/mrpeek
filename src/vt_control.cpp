@@ -1,10 +1,12 @@
 #include <iostream>
 #include <termios.h>
 #include <unistd.h>
+#include <thread>
 
 #include "exception.h"
 #include "vt_control.h"
 #include "debug.h"
+#include "mrtrix.h"
 
 
 namespace MR {
@@ -46,6 +48,7 @@ namespace MR {
       std::cout << CursorOn << MouseTrackingOff << "\n";
       std::cout.flush();
     }
+
 
     int read_user_input (int& x, int& y)
     {
@@ -125,9 +128,54 @@ namespace MR {
       return c;
     }
 
+    void get_cursor_position (int& row, int& col)
+    {
+      std::cout << "\033[6n";
+      std::cout.flush();
+
+      int nread;
+      char c = '\0';
+
+      try {
+        while ((nread = read (STDIN_FILENO, &c, 1)) != 1) {
+          if (nread == -1 && errno != EAGAIN)
+            throw 1;
+          std::this_thread::sleep_for (std::chrono::milliseconds(10));
+        }
+
+        if (c != Escape)
+          throw 1;
+
+        std::string buf;
+        while ((nread = read (STDIN_FILENO, &c, 1)) == 1) {
+          if (c == '[' && buf.empty())
+            continue;
+          if (c == 'R')
+            break;
+          if (( c >= '0' && c <= '9') || c == ';')
+            buf += c;
+          else
+            throw 1;
+          if (buf.size() > 10)
+            throw 1;
+        }
+
+        auto xy = split (buf, ";");
+        if (xy.size() != 2)
+          throw 1;
+
+        row = to<int> (xy[0]);
+        col = to<int> (xy[1]);
+      }
+      catch (int) {
+        throw Exception ("unexpected response from terminal");
+      }
+
+    }
+
 
   }
-};
+}
 
 
 

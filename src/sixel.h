@@ -8,6 +8,10 @@
 namespace MR {
   namespace Sixel {
 
+    namespace {
+      bool need_newline_after_sixel = true;
+    }
+
     constexpr float BrightnessIncrement = 0.01f;
     constexpr float ContrastIncrement = 0.03f;
 
@@ -139,6 +143,10 @@ namespace MR {
             out += encode (y);
 
           out += VT::SixelStop;
+
+          if (need_newline_after_sixel)
+            out += VT::move_cursor (VT::Down,1) + VT::CarriageReturn;
+
           std::cout << out;
         }
 
@@ -225,6 +233,19 @@ namespace MR {
           }
         }
     };
+
+
+
+
+
+
+    inline void init()
+    {
+      int row, col;
+      std::cout << VT::CursorHome << VT::SixelStart << "#0;2;0;0;0$#0?!200-" << VT::SixelStop;
+      VT::get_cursor_position (row,col);
+      need_newline_after_sixel = (row==1);
+    }
 
   }
 }

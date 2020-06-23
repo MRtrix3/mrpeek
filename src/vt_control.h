@@ -59,10 +59,17 @@ namespace MR {
       stream << "\033[" << row << ";" << column << "H";
       return stream.str();
     }
-    inline std::string move_cursor_left (int n)
+    inline std::string move_cursor (int direction, int n)
     {
       std::ostringstream stream;
-      stream << "\033[" << n << "D";
+      stream << "\033[" << n;
+       switch (direction) {
+         case Up:    stream << "A"; break;
+         case Down:  stream << "B"; break;
+         case Left:  stream << "D"; break;
+         case Right: stream << "C"; break;
+         default: assert (0 /* invalid cursor direction */);
+       }
       return stream.str();
     }
 
@@ -71,6 +78,12 @@ namespace MR {
     void exit_raw_mode();
     int read_user_input (int& x, int& y);
 
+    void get_cursor_position (int& row, int& col);
+    inline void get_terminal_size (int& rows, int& cols)
+    {
+      std::cout << position_cursor_at (999,999);
+      get_cursor_position (rows,cols);
+    }
 
   }
 };
