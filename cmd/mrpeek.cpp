@@ -310,11 +310,12 @@ void plot (Image<value_type>& image, int plot_axis)
   }
 
   // encode buffer and print out:
-  std::cout << VT::move_cursor (VT::Down, 2) << VT::CarriageReturn;
+  std::cout << VT::move_cursor (VT::Down, 2) << VT::CarriageReturn << vmax
+    << VT::move_cursor (VT::Down, 1) << VT::CarriageReturn;
   encoder.write();
-  std::cout << VT::CarriageReturn << VT::ClearLine
-    << "plot axis: " << plot_axis << " [ 0 : " << plotslice.size() - 1
-    << " ] | range: [ " << vmin << " " << vmax << " ]";
+  std::cout << VT::CarriageReturn << VT::ClearLine << vmin
+    << VT::move_cursor (VT::Down, 1) << VT::CarriageReturn << VT::ClearLine
+    << "plot axis: " << plot_axis << " | x range: [ 0 " << plotslice.size() - 1 << " ]";
 
   std::cout.flush();
 }
