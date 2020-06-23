@@ -227,7 +227,7 @@ void plot (Image<value_type>& image, int plot_axis)
 
   const int radius = std::max<int>(1, std::round(scale_image));
   const int pad = std::max(radius, std::max<int>(2, std::round(2*scale_image)));
-  const int x_dim = std::max(100.f, (2 * std::max(image.size(0), image.size(1)) + image.size(3)) * scale_image) + 2 * pad;
+  const int x_dim = std::max(100.f, (2 * std::max(image.size(0), image.size(1)) + image.size(2)) * scale_image) + 2 * pad;
   const int y_dim = std::round((float) x_dim / 1.618033) + 2 * pad;
 
   for (int n = 0; n < 3; ++n) {
