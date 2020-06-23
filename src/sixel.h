@@ -226,6 +226,15 @@ namespace MR {
         }
     };
 
+
+    bool test_need_newline_after_sixel()
+    {
+      int x, y;
+      std::cout << VT::CursorHome << VT::SixelStart << "#0;2;0;0$#0?!200-" << VT::SixelStop;
+      VT::get_cursor_position (x,y);
+      return y > 1;
+    }
+
   }
 }
 
