@@ -94,7 +94,7 @@ void usage ()
   +   Argument ("y").type_integer()
 
   + Option ("levels",
-            "number of intensity levels in the colourmap. Default is 64.")
+            "number of intensity levels in the colourmap. Default is 32.")
   +   Argument ("number").type_integer (2)
 
   + Option ("scale_image",
@@ -139,7 +139,7 @@ value_type percentile (Container& data, default_type percentile)
 // Global variables to hold slide dislay parameters:
 // These will need to be moved into a struct/class eventually...
 int colourmap_ID = 0;
-int levels = 64;
+int levels = 32;
 int x_axis, y_axis, slice_axis = 2, plot_axis = slice_axis, vol_axis = -1;
 value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX, scale_image = 1.0;
 bool crosshair = true, colorbar = true, orthoview = true, interactive = true;
@@ -248,7 +248,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   }
 
   if (orthoview) {
-    const int backup_slice_axis = slice_axis, backup_x_axis = x_axis, backup_y_axis = y_axis;
+    const int backup_slice_axis = slice_axis;
 
     // calculate panel dimensions
     slice_axis = 2; set_axes();
@@ -294,7 +294,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
       encoder.draw_boundingbox (interactive && slice_axis == backup_slice_axis);
     }
     slice_axis = backup_slice_axis;
-    x_axis = backup_x_axis; y_axis = backup_y_axis;
+    set_axes();
 
     // encode buffer and print out:
     encoder.write();
@@ -535,7 +535,11 @@ void run ()
     throw Exception("slice " + str(focus[slice_axis]) + " exceeds image size (" + str(image.size(slice_axis)) + ") in axis " + str(slice_axis));
 
   colourmap_ID = get_option_value ("colourmap", colourmap_ID);
-  levels = get_option_value ("levels", levels);
+
+  //CONF option: MRPeekColourmapLevels
+  //CONF default: 32
+  //CONF set the default number of colourmap levels to use within mrpeek
+  levels = get_option_value ("levels", File::Config::get_int ("MRPeekColourmapLevels", levels));
 
   Sixel::ColourMap colourmap (ColourMap::maps[colourmap_ID], levels);
 
@@ -563,16 +567,16 @@ void run ()
   }
 
   //CONF option: MRPeekOrthoView
-  orthoview = get_option_value ("orthoview", MR::File::Config::get_bool ("MRPeekOrthoView", orthoview));
+  orthoview = get_option_value ("orthoview", File::Config::get_bool ("MRPeekOrthoView", orthoview));
 
   //CONF option: MRPeekScaleImage
-  scale_image = get_option_value ("scale_image", MR::File::Config::get_float ("MRPeekScaleImage", scale_image));
+  scale_image = get_option_value ("scale_image", File::Config::get_float ("MRPeekScaleImage", scale_image));
   if (scale_image <= 0)
     throw Exception ("scale_image value needs to be positive");
   INFO("scale_image: " + str(scale_image));
 
   //CONF option: MRPeekInteractive
-  if (!interactive or !get_option_value ("interactive", MR::File::Config::get_bool ("MRPeekInteractive", true))) {
+  if (!interactive or !get_option_value ("interactive", File::Config::get_bool ("MRPeekInteractive", true))) {
     interactive = false;
     display (image, colourmap);
     std::cout << "\n";
@@ -612,21 +616,21 @@ void run ()
 
       switch (event) {
         case VT::Up:
-        case VT::MouseWheelUp:
           switch(arrow_mode) {
             case ARROW_SLICEVOL:  ++focus[slice_axis];   break;
             case ARROW_CROSSHAIR: ++focus[y_axis]; break;
             case ARROW_COLOUR:    colourmap.update_scaling (0, -1); break;
             default: break;
           } break;
+        case VT::MouseWheelUp: ++focus[slice_axis]; break;
         case VT::Down:
-        case VT::MouseWheelDown:
           switch(arrow_mode) {
             case ARROW_SLICEVOL:  --focus[slice_axis];   break;
             case ARROW_CROSSHAIR: --focus[y_axis]; break;
             case ARROW_COLOUR:    colourmap.update_scaling (0, 1); break;
             default: break;
           } break;
+        case VT::MouseWheelDown: --focus[slice_axis]; break;
         case VT::Left:
           switch(arrow_mode) {
             case ARROW_SLICEVOL:  if (vol_axis >= 0) {
