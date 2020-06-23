@@ -14,9 +14,6 @@ namespace MR {
     constexpr const char* ClearLineFromCursorRight = "\033[0K";
     constexpr const char* CarriageReturn = "\r";
 
-    constexpr const char* SixelStart = "\033Pq$";
-    constexpr const char* SixelStop = "\033\\";
-
     constexpr const char* CursorOff = "\033[?25l";
     constexpr const char* CursorOn = "\033[?25h";
 

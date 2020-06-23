@@ -102,7 +102,7 @@ void usage ()
             "number of intensity levels in the colourmap. Default is 32.")
   +   Argument ("number").type_integer (2)
 
-  + Option ("scale_image",
+  + Option ("zoom",
             "scale the image size by the supplied factor")
     + Argument ("factor").type_float()
 
@@ -113,6 +113,31 @@ void usage ()
 
 
 using value_type = float;
+using ImageType = Image<value_type>;
+using Reslicer = Adapter::Reslice<Interp::Nearest, ImageType>;
+
+
+#define CROSSHAIR_IDX 1
+#define FRAME_IDX 2
+#define HIGHLIGHT_IDX 3
+#define STATIC_CMAP { {0,0,0}, { 100,100,0 }, {50,50,50}, {100,100,100} }
+
+
+
+// Global variables to hold slide dislay parameters:
+// These will need to be moved into a struct/class eventually...
+int levels = 32;
+int x_axis, y_axis, slice_axis = 2, plot_axis = slice_axis, vol_axis = -1;
+value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX, zoom = 1.0;
+bool crosshair = true, colorbar = true, orthoview = true, interactive = true;
+bool do_plot = false, show_image = true;
+vector<int> focus (3, 0);  // relative to original image grid
+ArrowMode x_arrow_mode = ARROW_SLICEVOL, arrow_mode = x_arrow_mode;
+Sixel::ColourMaps colourmaps;
+Sixel::ColourMaps plot_cmaps;
+
+
+
 
 // calculate percentile of a list of numbers
 // implementation based on `mrthreshold` - can be merged with Math::median in due course
@@ -141,17 +166,6 @@ value_type percentile (Container& data, default_type percentile)
 
 
 
-// Global variables to hold slide dislay parameters:
-// These will need to be moved into a struct/class eventually...
-int colourmap_ID = 0;
-int levels = 32;
-int x_axis, y_axis, slice_axis = 2, plot_axis = slice_axis, vol_axis = -1;
-value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX, scale_image = 1.0;
-bool crosshair = true, colorbar = true, orthoview = true, interactive = true;
-vector<int> focus (3, 0);  // relative to original image grid
-ArrowMode x_arrow_mode = ARROW_SLICEVOL, arrow_mode = x_arrow_mode;
-bool do_plot = false, show_image = true;
-
 
 // Supporting functions for display
 //
@@ -166,7 +180,9 @@ inline void set_axes ()
 }
 
 
-template <class ImageType> inline void show_focus (ImageType& image)
+
+
+inline void show_focus (ImageType& image)
 {
   image.index(0) = focus[0];
   image.index(1) = focus[1];
@@ -194,45 +210,81 @@ template <class ImageType> inline void show_focus (ImageType& image)
 
 
 
-template <class ImageType>
-Header regrid_header (ImageType& image, float scale)
+
+inline Reslicer get_regridder (ImageType& image, int with_slice_axis)
 {
   Header header_target (image);
-  float new_voxel_size = 1.0;
   default_type original_extent;
   for (int d = 0; d < 3; ++d) {
-    if (d == slice_axis)
-      new_voxel_size = image.spacing(d);
-    else
-      new_voxel_size = scale;
+    const float new_voxel_size = (d == with_slice_axis) ? image.spacing(d) : 1.0f/zoom;
 
     original_extent = image.size(d) * image.spacing(d);
 
     header_target.size(d) = std::round (image.size(d) * image.spacing(d) / new_voxel_size - 0.0001); // round down at .5
     for (size_t i = 0; i < 3; ++i)
-      header_target.transform()(i,3) += 0.5 * ((new_voxel_size - header_target.spacing(d)) + (original_extent - (header_target.size(d) * new_voxel_size))) * header_target.transform()(i,d);
+      header_target.transform()(i,3) += 0.5 * (
+          (new_voxel_size - header_target.spacing(d)) +
+          (original_extent - (header_target.size(d) * new_voxel_size))
+          ) * header_target.transform()(i,d);
     header_target.spacing(d) = new_voxel_size;
   }
 
-  return header_target;
+  return { image, header_target };
 }
 
-template <class ImageType>
-using Reslicer = Adapter::Reslice<Interp::Nearest, ImageType>;
+
+
+
+
+void autoscale (ImageType& image, Sixel::CMap& cmap)
+{
+  auto image_regrid = get_regridder (image, slice_axis);
+  const int x_dim = image_regrid.size(x_axis);
+  const int y_dim = image_regrid.size(y_axis);
+  image_regrid.index(slice_axis) = focus[slice_axis];
+
+  std::vector<value_type> currentslice (x_dim*y_dim);
+  size_t k = 0;
+  for (auto l = Loop ({ size_t(x_axis), size_t(y_axis) })(image_regrid); l; ++l)
+    currentslice[k++] = image_regrid.value();
+
+  value_type vmin = percentile(currentslice, pmin);
+  value_type vmax = percentile(currentslice, pmax);
+  cmap.set_scaling_min_max (vmin, vmax);
+  INFO("reset intensity range to " + str(vmin) + " - " +str(vmax));
+}
+
+
+
+
+void display_slice (Reslicer& regrid, const Sixel::ViewPort& view, const Sixel::CMap& cmap)
+{
+  const int x_dim = regrid.size(x_axis);
+  const int y_dim = regrid.size(y_axis);
+
+  regrid.index(slice_axis) = focus[slice_axis];
+  for (int y = 0; y < y_dim; ++y) {
+    regrid.index(y_axis) = y_dim-1-y;
+    for (int x = 0; x < x_dim; ++x) {
+      regrid.index(x_axis) = x_dim-1-x;
+      view(x,y) = cmap (regrid.value());
+    }
+  }
+}
 
 
 
 
 
 
-void plot (Image<value_type>& image, int plot_axis)
+
+void plot (ImageType& image, int plot_axis)
 {
   set_axes();
-  auto image_regrid = Adapter::make<Reslicer> (image, image);
 
-  const int radius = std::max<int>(1, std::round(scale_image));
-  const int pad = std::max(radius, std::max<int>(2, std::round(2*scale_image)));
-  const int x_dim = std::max(100.f, (2 * std::max(image.size(0), image.size(1)) + image.size(2)) * scale_image) + 2 * pad;
+  const int radius = std::max<int>(1, std::round(zoom));
+  const int pad = std::max(radius, std::max<int>(2, std::round(2*zoom)));
+  const int x_dim = std::max(100.0, 2.0f * std::max(std::max (image.size(0)*image.spacing(0), image.size(1)*image.spacing(1)), image.size(2)*image.spacing(2)) * zoom) + 2 * pad;
   const int y_dim = std::round((float) x_dim / 1.618033) + 2 * pad;
 
   for (int n = 0; n < 3; ++n) {
@@ -241,39 +293,47 @@ void plot (Image<value_type>& image, int plot_axis)
   }
 
   for (int n = 0; n < 3; ++n)
-    image_regrid.index(n) = focus[n];
+    image.index(n) = focus[n];
   for (size_t n = 3; n < image.ndim(); ++n)
-    image_regrid.index(n) = image.index(n);
-  image_regrid.index(plot_axis) = 0;
+    image.index(n) = image.index(n);
+  image.index(plot_axis) = 0;
 
-  std::vector<value_type> plotslice (image_regrid.size(plot_axis));
-  std::vector<value_type> plotslice_finite (image_regrid.size(plot_axis));
+  std::vector<value_type> plotslice (image.size(plot_axis));
+  std::vector<value_type> plotslice_finite (image.size(plot_axis));
   size_t k = 0;
-  for (auto l = Loop ({ size_t(plot_axis) })(image_regrid); l; ++l) {
-    plotslice[k] = image_regrid.value(); plotslice_finite[k] = plotslice[k];
+  for (auto l = Loop ({ size_t(plot_axis) })(image); l; ++l) {
+    plotslice[k] = image.value();
+    plotslice_finite[k] = plotslice[k];
     ++k;
   }
   value_type vmin = percentile(plotslice_finite, 0); // non-finite values removed
   value_type vmax = percentile(plotslice_finite, 100);
-  if (vmax == vmin) { vmin -= 1e-3; vmax += 1e-3; }
+  if (vmax == vmin) {
+    vmin -= 1e-3;
+    vmax += 1e-3;
+  }
 
-  Sixel::ColourMap plot_colourmap (ColourMap::maps[0], 3);
-  plot_colourmap.set_scaling_min_max (0, 2);
+  if (!plot_cmaps.size())
+    plot_cmaps.add ({ { 0,0,0 }, { 50,50,50 }, {100,100,100} });
 
-  Sixel::Encoder<1,1> encoder (x_dim, y_dim, plot_colourmap);
+  Sixel::Encoder encoder (x_dim, y_dim, plot_cmaps);
+  auto canvas = encoder.viewport();
 
   int last_x, last_y, delta_x;
   bool connect_dots = false;
   const int x_offset = pad, y_offset = y_dim-1-pad;
   // coordinate axes
-  for (int x = 0; x < x_dim; ++x) encoder(x, y_offset, 1);
-  for (int y = 0; y < y_dim; ++y) encoder(x_offset, y, 1);
+  for (int x = 0; x < x_dim; ++x)
+    canvas(x, y_offset) = 1;
+  for (int y = 0; y < y_dim; ++y)
+    canvas(x_offset, y) = 1;
   for (int index = 0; index < plotslice.size(); ++index) {
     int x = std::round(float(index) / (plotslice.size() - 1) * (x_dim - 2 * pad));
     assert(x < x_dim);
     assert(x >= 0);
     int r0 = (index % 10) == 0 ? -pad : -std::max(1, pad/2);
-    for (int y = r0; y < 0; ++y) encoder(x_offset + x, y_offset - y, 1);
+    for (int y = r0; y < 0; ++y)
+      canvas(x_offset + x, y_offset - y) = 1;
   }
 
   for (int index = 0; index < plotslice.size(); ++index) {
@@ -293,7 +353,7 @@ void plot (Image<value_type>& image, int plot_axis)
       // focus position: draw []
       for (int r1 = -radius; r1 <= radius; ++r1)
         for (int r2 = -radius; r2 <= radius; ++r2)
-          encoder(x_offset + (x+r1), y_offset - (y+r2), 1);
+          canvas(x_offset + (x+r1), y_offset - (y+r2)) = 1;
     }
 
     // plot line segment
@@ -301,14 +361,14 @@ void plot (Image<value_type>& image, int plot_axis)
       assert(x > last_x);
       delta_x = x - last_x;
       for (int dx = 0; dx <= delta_x; ++dx)
-        encoder(x_offset + (last_x + dx), y_offset - std::round((float(y * dx) + float(last_y * (delta_x - dx))) / delta_x), 1);
+        canvas(x_offset + (last_x + dx), y_offset - std::round((float(y * dx) + float(last_y * (delta_x - dx))) / delta_x)) = 1;
     }
 
     // data: draw +
     for (int r = -radius; r <= radius; ++r)
-      encoder(x_offset + x, y_offset - (y+r), 2);
+      canvas(x_offset + x, y_offset - (y+r)) = 2;
     for (int r = -radius; r <= radius; ++r)
-      encoder(x_offset + (x + r), y_offset - y, 2);
+      canvas(x_offset + (x + r), y_offset - y) = 2;
 
     connect_dots = true;
     last_x = x; last_y = y;
@@ -326,85 +386,63 @@ void plot (Image<value_type>& image, int plot_axis)
 }
 
 
+
+
+
+
+
 // Show the main image,
 // run repeatedly to update display.
-void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
+void display (ImageType& image, Sixel::ColourMaps& colourmaps)
 {
-  std::cout << VT::ClearScreen;
+  auto& cmap = colourmaps[1];
 
   if (show_image) {
     set_axes();
-    float scale = std::min (std::min (image.spacing(0), image.spacing(1)), image.spacing(2)) / scale_image;
-
-    auto image_regrid = Adapter::make<Reslicer> (image, regrid_header(image, scale));
-    int x_dim = image_regrid.size(x_axis);
-    int y_dim = image_regrid.size(y_axis);
-
     for (int n = 0; n < 3; ++n) {
       if (focus[n] < 0) focus[n] = 0;
       if (focus[n] >= image.size(n)) focus[n] = image.size(n)-1;
     }
 
-    image_regrid.index(slice_axis) = focus[slice_axis];
-
-    if (!colourmap.scaling_set()) {
-      // reset scaling:
-      std::vector<value_type> currentslice (x_dim*y_dim);
-      size_t k = 0;
-      for (auto l = Loop ({ size_t(x_axis), size_t(y_axis) })(image_regrid); l; ++l)
-        currentslice[k++] = image_regrid.value();
-
-      value_type vmin = percentile(currentslice, pmin);
-      value_type vmax = percentile(currentslice, pmax);
-      colourmap.set_scaling_min_max (vmin, vmax);
-      INFO("reset intensity range to " + str(vmin) + " - " +str(vmax));
-    }
+    if (!cmap.scaling_set())
+      autoscale (image, cmap);
 
     if (orthoview) {
       const int backup_slice_axis = slice_axis;
 
+      Reslicer regrid[3] = {
+        get_regridder (image, 0),
+        get_regridder (image, 1),
+        get_regridder (image, 2)
+      };
+
       // calculate panel dimensions
-      slice_axis = 2; set_axes();
-      auto tmp_regrid1 = regrid_header(image, scale);
-      int panel_x_dim = std::max(tmp_regrid1.size(0), tmp_regrid1.size(1));
-      slice_axis = 0; set_axes();
-      auto tmp_regrid2 = regrid_header(image, scale);
-      int panel_y_dim = std::max(tmp_regrid2.size(0), tmp_regrid2.size(1));
+      int panel_x_dim = std::max(regrid[2].size(0), regrid[0].size(0));
+      int panel_y_dim = std::max(regrid[1].size(1), regrid[2].size(1));
 
-      Sixel::Encoder<3> encoder (panel_x_dim, panel_y_dim, colourmap);
+      Sixel::Encoder encoder (3*panel_x_dim, panel_y_dim, colourmaps);
 
-      for (slice_axis = 0; slice_axis < 3; ++slice_axis)
-      {
+      for (slice_axis = 0; slice_axis < 3; ++slice_axis) {
         set_axes();
-        auto image_regrid1 = Adapter::make<Reslicer> (image, regrid_header(image, scale));
-        x_dim = image_regrid1.size(x_axis);
-        y_dim = image_regrid1.size(y_axis);
+        const int x_dim = regrid[slice_axis].size (x_axis);
+        const int y_dim = regrid[slice_axis].size (y_axis);
         // recentring
-        int dx = (panel_x_dim - x_dim) / 2;
-        int dy = (panel_y_dim - y_dim) / 2;
-
-        encoder.set_panel(slice_axis);
-
-        image_regrid1.index(slice_axis) = focus[slice_axis];
-        for (int y = 0; y < y_dim; ++y) {
-          image_regrid1.index(y_axis) = y_dim-1-y;
-          for (int x = 0; x < x_dim; ++x) {
-            image_regrid1.index(x_axis) = x_dim-1-x;
-            encoder(x+dx, y+dy, image_regrid1.value());
-          }
-        }
+        const int dx = (panel_x_dim - x_dim) / 2;
+        const int dy = (panel_y_dim - y_dim) / 2;
+        auto view = encoder.viewport (slice_axis*panel_x_dim, 0, panel_x_dim, panel_y_dim);
+        display_slice (regrid[slice_axis], view.viewport (dx, dy), cmap);
 
         if (crosshair) {
-          int x = std::round(x_dim - image.spacing(x_axis) * (focus[x_axis] + 0.5) / scale);
-          int y = std::round(y_dim - image.spacing(y_axis) * (focus[y_axis] + 0.5) / scale);
+          int x = std::round(x_dim - image.spacing(x_axis) * (focus[x_axis] + 0.5) * zoom);
+          int y = std::round(y_dim - image.spacing(y_axis) * (focus[y_axis] + 0.5) * zoom);
           x = std::max (std::min (x, x_dim-1), 0);
           y = std::max (std::min (y, y_dim-1), 0);
-          encoder.draw_crosshairs (x+dx, y+dy);
+          view.draw_crosshairs(x+dx, y+dy, CROSSHAIR_IDX);
         }
 
-        if (slice_axis == 2) encoder.draw_colourbar ();
+        //if (slice_axis == 2) encoder.draw_colourbar ();
 
-        encoder.draw_boundingbox (interactive && slice_axis == backup_slice_axis);
+        //view.frame ((interactive && slice_axis == backup_slice_axis) ? HIGHLIGHT_IDX : FRAME_IDX);
       }
       slice_axis = backup_slice_axis;
       set_axes();
@@ -413,27 +451,23 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
       encoder.write();
     }
     else {
-      Sixel::Encoder<> encoder (x_dim, y_dim, colourmap);
+      auto regrid = get_regridder (image, slice_axis);
+      const int x_dim = regrid.size (x_axis);
+      const int y_dim = regrid.size (y_axis);
 
-      for (int y = 0; y < y_dim; ++y) {
-        image_regrid.index(y_axis) = y_dim-1-y;
-        for (int x = 0; x < x_dim; ++x) {
-          image_regrid.index(x_axis) = x_dim-1-x;
-          encoder(x, y, image_regrid.value());
-        }
-      }
+      Sixel::Encoder encoder (x_dim, y_dim, colourmaps);
+      auto view = encoder.viewport();
+      display_slice (regrid, view, cmap);
 
       if (crosshair) {
-        int x = std::round(x_dim - image.spacing(x_axis) * (focus[x_axis] + 0.5) / scale);
-        int y = std::round(y_dim - image.spacing(y_axis) * (focus[y_axis] + 0.5) / scale);
+        int x = std::round(x_dim - image.spacing(x_axis) * (focus[x_axis] + 0.5) * zoom);
+        int y = std::round(y_dim - image.spacing(y_axis) * (focus[y_axis] + 0.5) * zoom);
         x = std::max (std::min (x, x_dim-1), 0);
         y = std::max (std::min (y, y_dim-1), 0);
-        encoder.draw_crosshairs (x,y);
+        view.draw_crosshairs (x, y, CROSSHAIR_IDX);
       }
 
-      encoder.draw_colourbar ();
-
-      encoder.draw_boundingbox (interactive);
+      //view.draw_colourbar ();
 
       // encode buffer and print out:
       encoder.write();
@@ -444,7 +478,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
   show_focus(image);
   std::cout << " [ ";
   if (arrow_mode == ARROW_COLOUR) std::cout << VT::TextForegroundYellow;
-  std::cout << colourmap.min() << " " << colourmap.max() << VT::TextReset;
+  std::cout << cmap.min() << " " << cmap.max() << VT::TextReset;
   std::cout << " ] ";
 
   if (orthoview) {
@@ -567,7 +601,7 @@ void run ()
   if (focus[slice_axis] >= image.size(slice_axis))
     throw Exception("slice " + str(focus[slice_axis]) + " exceeds image size (" + str(image.size(slice_axis)) + ") in axis " + str(slice_axis));
 
-  colourmap_ID = get_option_value ("colourmap", colourmap_ID);
+  int colourmap_ID = get_option_value ("colourmap", 0);
 
   do_plot = get_options ("plot").size();
   plot_axis = get_option_value ("plot", plot_axis);
@@ -579,11 +613,12 @@ void run ()
   //CONF set the default number of colourmap levels to use within mrpeek
   levels = get_option_value ("levels", File::Config::get_int ("MRPeekColourmapLevels", levels));
 
-  Sixel::ColourMap colourmap (ColourMap::maps[colourmap_ID], levels);
+  colourmaps.add (STATIC_CMAP);
+  colourmaps.add (colourmap_ID, levels);
 
   auto opt = get_options ("intensity_range");
   if (opt.size()) {
-    colourmap.set_scaling_min_max (opt[0][0], opt[0][1]);
+    colourmaps[1].set_scaling_min_max (opt[0][0], opt[0][1]);
   }
 
   opt = get_options ("percentile_range");
@@ -608,15 +643,16 @@ void run ()
   orthoview = get_option_value ("orthoview", File::Config::get_bool ("MRPeekOrthoView", orthoview));
 
   //CONF option: MRPeekScaleImage
-  scale_image = get_option_value ("scale_image", File::Config::get_float ("MRPeekScaleImage", scale_image));
-  if (scale_image <= 0)
-    throw Exception ("scale_image value needs to be positive");
-  INFO("scale_image: " + str(scale_image));
+  zoom = get_option_value ("zoom", MR::File::Config::get_float ("MRPeekZoom", zoom));
+  if (zoom <= 0)
+    throw Exception ("zoom value needs to be positive");
+  INFO("zoom: " + str(zoom));
+  zoom /= std::min (std::min (image.spacing(0), image.spacing(1)), image.spacing(2));
 
   //CONF option: MRPeekInteractive
   if (!interactive or !get_option_value ("interactive", File::Config::get_bool ("MRPeekInteractive", true))) {
     interactive = false;
-    display (image, colourmap);
+    display (image, colourmaps);
     std::cout << "\n";
     return;
   }
@@ -636,8 +672,8 @@ void run ()
 
       while ((event = VT::read_user_input(x, y)) == 0) {
         if (need_update) {
-          std::cout << VT::CursorHome;
-          display (image, colourmap);
+          std::cout << VT::ClearScreen << VT::CursorHome;
+          display (image, colourmaps);
           need_update = false;
         }
         std::this_thread::sleep_for (std::chrono::milliseconds(10));
@@ -655,7 +691,7 @@ void run ()
           switch(arrow_mode) {
             case ARROW_SLICEVOL:  ++focus[slice_axis];   break;
             case ARROW_CROSSHAIR: ++focus[y_axis]; break;
-            case ARROW_COLOUR:    colourmap.update_scaling (0, -1); break;
+            case ARROW_COLOUR:    colourmaps[1].update_scaling (0, -1); break;
             default: break;
           } break;
         case VT::MouseWheelUp: ++focus[slice_axis]; break;
@@ -663,7 +699,7 @@ void run ()
           switch(arrow_mode) {
             case ARROW_SLICEVOL:  --focus[slice_axis];   break;
             case ARROW_CROSSHAIR: --focus[y_axis]; break;
-            case ARROW_COLOUR:    colourmap.update_scaling (0, 1); break;
+            case ARROW_COLOUR:    colourmaps[1].update_scaling (0, 1); break;
             default: break;
           } break;
         case VT::MouseWheelDown: --focus[slice_axis]; break;
@@ -674,7 +710,7 @@ void run ()
                                     if (image.index(vol_axis) < 0) image.index(vol_axis) = image.size(vol_axis) - 1; }
                                   break;
             case ARROW_CROSSHAIR: ++focus[x_axis]; break;
-            case ARROW_COLOUR:    colourmap.update_scaling (-1, 0); break;
+            case ARROW_COLOUR:    colourmaps[1].update_scaling (-1, 0); break;
             default: break;
           } break;
         case VT::Right:
@@ -684,7 +720,7 @@ void run ()
                                     if (image.index(vol_axis) >= image.size(vol_axis)) image.index(vol_axis) = 0; }
                                   break;
             case ARROW_CROSSHAIR: --focus[x_axis]; break;
-            case ARROW_COLOUR:    colourmap.update_scaling (1, 0); break;
+            case ARROW_COLOUR:    colourmaps[1].update_scaling (1, 0); break;
             default: break;
           } break;
         case 'f': crosshair = !crosshair; break;
@@ -696,22 +732,19 @@ void run ()
         case 'm': show_image = !show_image; break;
         case 'r': focus[x_axis] = std::round (image.size(x_axis)/2); focus[x_axis] = std::round (image.size(x_axis)/2);
                   focus[slice_axis] = std::round (image.size(slice_axis)/2); break;
-        case '+': scale_image *= 1.1; break;
-        case '-': scale_image /= 1.1; break;
+        case '+': zoom *= 1.1; break;
+        case '-': zoom /= 1.1; break;
         case ' ':
         case 'x': arrow_mode = x_arrow_mode = (x_arrow_mode == ARROW_SLICEVOL) ? ARROW_CROSSHAIR : ARROW_SLICEVOL; break;
         case 'b': arrow_mode = (arrow_mode == ARROW_COLOUR) ? x_arrow_mode : ARROW_COLOUR; break;
         case VT::MouseMoveLeft: focus[x_axis] += xp-x; focus[y_axis] += yp-y; break;
-        case VT::Escape: colourmap.invalidate_scaling(); break;
-        case VT::MouseMoveRight: colourmap.update_scaling (x-xp, y-yp); break;
+        case VT::Escape: colourmaps[1].invalidate_scaling(); break;
+        case VT::MouseMoveRight: colourmaps[1].update_scaling (x-xp, y-yp); break;
         case 'l': {
                     int n;
                     if (query_int ("select number of levels: ", n, 1, 254)) {
                       levels = n;
-                      float offset = colourmap.offset();
-                      float scale = colourmap.scale();
-                      colourmap = Sixel::ColourMap (ColourMap::maps[colourmap_ID], levels);
-                      colourmap.set_scaling (offset, scale);
+                      colourmaps[1].set_levels (levels);
                     }
                   } break;
         case 'p': do_plot = query_int ("select plot axis [0 ... "+str(image.ndim()-1)+"]: ",
@@ -723,11 +756,7 @@ void run ()
                   if (event >= '1' && event <= '9') {
                     int idx = event - '1';
                     if (idx < colourmap_choices_std.size()) {
-                      float offset = colourmap.offset();
-                      float scale = colourmap.scale();
-                      colourmap_ID = idx;
-                      colourmap = Sixel::ColourMap (ColourMap::maps[colourmap_ID], levels);
-                      colourmap.set_scaling (offset, scale);
+                      colourmaps[1].ID = idx;
                       break;
                     }
                   }
