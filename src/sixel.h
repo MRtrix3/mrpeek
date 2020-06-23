@@ -143,6 +143,10 @@ namespace MR {
             out += encode (y);
 
           out += VT::SixelStop;
+
+          if (need_newline_after_sixel)
+            out += VT::move_cursor (VT::Down,1) + VT::CarriageReturn;
+
           std::cout << out;
         }
 
@@ -177,8 +181,6 @@ namespace MR {
           }
           // replace last character from $ (carriage return) to '-' (newline):
           out.back() = '-';
-          if (need_newline_after_sixel)
-            out += VT::move_cursor (VT::Down,1) + VT::CarriageReturn;
           return out;
         }
 
@@ -240,9 +242,10 @@ namespace MR {
     inline void init()
     {
       int row, col;
-      std::cout << VT::CursorHome << VT::SixelStart << "#0;2;0;0$#0?!200-" << VT::SixelStop;
+      std::cout << VT::CursorHome << VT::SixelStart << "#0;2;0;0;0$#0?!200-" << VT::SixelStop;
       VT::get_cursor_position (row,col);
       need_newline_after_sixel = (row==1);
+      VAR(need_newline_after_sixel);
     }
 
   }
