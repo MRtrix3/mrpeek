@@ -78,11 +78,11 @@ namespace MR {
     void exit_raw_mode();
     int read_user_input (int& x, int& y);
 
-    void get_cursor_position (int& x, int& y);
-    inline void get_terminal_size (int& x, int& y)
+    void get_cursor_position (int& row, int& col);
+    inline void get_terminal_size (int& rows, int& cols)
     {
       std::cout << position_cursor_at (999,999);
-      get_cursor_position (x,y);
+      get_cursor_position (rows,cols);
     }
 
   }

@@ -128,7 +128,7 @@ namespace MR {
       return c;
     }
 
-    void get_cursor_position (int& x, int& y)
+    void get_cursor_position (int& row, int& col)
     {
       std::cout << "\033[6n";
       std::cout.flush();
@@ -164,8 +164,8 @@ namespace MR {
         if (xy.size() != 2)
           throw 1;
 
-        x = to<int> (xy[0]);
-        y = to<int> (xy[1]);
+        row = to<int> (xy[0]);
+        col = to<int> (xy[1]);
       }
       catch (int) {
         throw Exception ("unexpected response from terminal");

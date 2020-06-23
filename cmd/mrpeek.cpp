@@ -146,7 +146,6 @@ bool crosshair = true, colorbar = true, orthoview = true, interactive = true;
 vector<int> focus (3, 0);  // relative to original image grid
 ArrowMode x_arrow_mode = ARROW_SLICEVOL, arrow_mode = x_arrow_mode;
 bool do_plot = false;
-bool need_newline_after_sixel = true;
 
 
 // Supporting functions for display
@@ -167,9 +166,7 @@ template <class ImageType> inline void show_focus (ImageType& image)
   image.index(0) = focus[0];
   image.index(1) = focus[1];
   image.index(2) = focus[2];
-  if (need_newline_after_sixel)
-    std::cout << VT::move_cursor(VT::Down,1);
-  std::cout << VT::CarriageReturn << VT::ClearLine;
+  std::cout << VT::ClearLine;
 
   std::cout << "index: [ ";
   for (int d = 0; d < 3; d++) {
@@ -316,9 +313,7 @@ void plot (Image<value_type>& image, int plot_axis)
   std::cout << VT::move_cursor (VT::Down, 2) << VT::CarriageReturn << vmax
     << VT::move_cursor (VT::Down, 1) << VT::CarriageReturn;
   encoder.write();
-  if (need_newline_after_sixel)
-    std::cout << VT::move_cursor(VT::Down,1);
-  std::cout << VT::CarriageReturn << VT::ClearLine << vmin
+  std::cout << VT::ClearLine << vmin
     << VT::move_cursor (VT::Down, 1) << VT::CarriageReturn << VT::ClearLine
     << "plot axis: " << plot_axis << " | x range: [ 0 " << plotslice.size() - 1 << " ]";
 
@@ -614,8 +609,7 @@ void run ()
 
   // start loop
   VT::enter_raw_mode();
-
-  need_newline_after_sixel = Sixel::test_need_newline_after_sixel();
+  Sixel::init();
 
   try {
 
