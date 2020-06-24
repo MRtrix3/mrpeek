@@ -332,7 +332,7 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
 {
   std::cout << VT::ClearScreen;
 
-  if (show_image || !do_plot) {
+  if (show_image) {
     set_axes();
     float scale = std::min (std::min (image.spacing(0), image.spacing(1)), image.spacing(2)) / scale_image;
 
