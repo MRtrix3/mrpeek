@@ -330,7 +330,9 @@ void plot (Image<value_type>& image, int plot_axis)
 // run repeatedly to update display.
 void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
 {
-  if (show_image) {
+  std::cout << VT::ClearScreen;
+
+  if (show_image || !do_plot) {
     set_axes();
     float scale = std::min (std::min (image.spacing(0), image.spacing(1)), image.spacing(2)) / scale_image;
 
@@ -357,8 +359,6 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
       colourmap.set_scaling_min_max (vmin, vmax);
       INFO("reset intensity range to " + str(vmin) + " - " +str(vmax));
     }
-
-    std::cout << VT::ClearScreen;
 
     if (orthoview) {
       const int backup_slice_axis = slice_axis;
@@ -438,8 +438,6 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
       // encode buffer and print out:
       encoder.write();
     }
-  } else {
-    std::cout << VT::ClearScreen;
   }
 
 
@@ -716,10 +714,9 @@ void run ()
                       colourmap.set_scaling (offset, scale);
                     }
                   } break;
-        case 'p': {
-                    do_plot = query_int ("select plot axis [0 ... "+str(image.ndim()-1)+"]: ",
-                        plot_axis, 0, image.ndim()-1);
-                  } break;
+        case 'p': do_plot = query_int ("select plot axis [0 ... "+str(image.ndim()-1)+"]: ",
+                      plot_axis, 0, image.ndim()-1);
+                  break;
         case '?': show_help(); break;
 
         default:
