@@ -324,16 +324,16 @@ void plot (ImageType& image, int plot_axis)
   const int x_offset = pad, y_offset = y_dim-1-pad;
   // coordinate axes
   for (int x = 0; x < x_dim; ++x)
-    canvas(x, y_offset) = 1;
+    canvas(x, y_offset) = FRAME_IDX;
   for (int y = 0; y < y_dim; ++y)
-    canvas(x_offset, y) = 1;
+    canvas(x_offset, y) = FRAME_IDX;
   for (int index = 0; index < plotslice.size(); ++index) {
     int x = std::round(float(index) / (plotslice.size() - 1) * (x_dim - 2 * pad));
     assert(x < x_dim);
     assert(x >= 0);
     int r0 = (index % 10) == 0 ? -pad : -std::max(1, pad/2);
     for (int y = r0; y < 0; ++y)
-      canvas(x_offset + x, y_offset - y) = 1;
+      canvas(x_offset + x, y_offset - y) = FRAME_IDX;
   }
 
   for (int index = 0; index < plotslice.size(); ++index) {
@@ -353,7 +353,7 @@ void plot (ImageType& image, int plot_axis)
       // focus position: draw []
       for (int r1 = -radius; r1 <= radius; ++r1)
         for (int r2 = -radius; r2 <= radius; ++r2)
-          canvas(x_offset + (x+r1), y_offset - (y+r2)) = 1;
+          canvas(x_offset + (x+r1), y_offset - (y+r2)) = FRAME_IDX;
     }
 
     // plot line segment
@@ -366,9 +366,9 @@ void plot (ImageType& image, int plot_axis)
 
     // data: draw +
     for (int r = -radius; r <= radius; ++r)
-      canvas(x_offset + x, y_offset - (y+r)) = 2;
+      canvas(x_offset + x, y_offset - (y+r)) = HIGHLIGHT_IDX;
     for (int r = -radius; r <= radius; ++r)
-      canvas(x_offset + (x + r), y_offset - y) = 2;
+      canvas(x_offset + (x + r), y_offset - y) = HIGHLIGHT_IDX;
 
     connect_dots = true;
     last_x = x; last_y = y;
