@@ -459,6 +459,9 @@ void display (Image<value_type>& image, Sixel::ColourMap& colourmap)
     };
   }
 
+  if (interactive)
+    std::cout << "| help: " << VT::TextUnderscore << "?" << VT::TextReset;
+
   if (do_plot)
     plot (image, plot_axis);
 
