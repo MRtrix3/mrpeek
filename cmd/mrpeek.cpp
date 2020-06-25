@@ -117,9 +117,9 @@ using ImageType = Image<value_type>;
 using Reslicer = Adapter::Reslice<Interp::Nearest, ImageType>;
 
 
-#define CROSSHAIR_IDX 1
-#define FRAME_IDX 2
-#define HIGHLIGHT_IDX 3
+#define CROSSHAIR_COLOUR 1
+#define STANDARD_COLOUR 2
+#define HIGHLIGHT_COLOUR 3
 #define STATIC_CMAP { {0,0,0}, { 100,100,0 }, {50,50,50}, {100,100,100} }
 
 
@@ -324,16 +324,16 @@ void plot (ImageType& image, int plot_axis)
   const int x_offset = pad, y_offset = y_dim-1-pad;
   // coordinate axes
   for (int x = 0; x < x_dim; ++x)
-    canvas(x, y_offset) = FRAME_IDX;
+    canvas(x, y_offset) = STANDARD_COLOUR;
   for (int y = 0; y < y_dim; ++y)
-    canvas(x_offset, y) = FRAME_IDX;
+    canvas(x_offset, y) = STANDARD_COLOUR;
   for (int index = 0; index < plotslice.size(); ++index) {
     int x = std::round(float(index) / (plotslice.size() - 1) * (x_dim - 2 * pad));
     assert(x < x_dim);
     assert(x >= 0);
     int r0 = (index % 10) == 0 ? -pad : -std::max(1, pad/2);
     for (int y = r0; y < 0; ++y)
-      canvas(x_offset + x, y_offset - y) = FRAME_IDX;
+      canvas(x_offset + x, y_offset - y) = STANDARD_COLOUR;
   }
 
   for (int index = 0; index < plotslice.size(); ++index) {
@@ -353,7 +353,7 @@ void plot (ImageType& image, int plot_axis)
       // focus position: draw []
       for (int r1 = -radius; r1 <= radius; ++r1)
         for (int r2 = -radius; r2 <= radius; ++r2)
-          canvas(x_offset + (x+r1), y_offset - (y+r2)) = FRAME_IDX;
+          canvas(x_offset + (x+r1), y_offset - (y+r2)) = STANDARD_COLOUR;
     }
 
     // plot line segment
@@ -366,9 +366,9 @@ void plot (ImageType& image, int plot_axis)
 
     // data: draw +
     for (int r = -radius; r <= radius; ++r)
-      canvas(x_offset + x, y_offset - (y+r)) = HIGHLIGHT_IDX;
+      canvas(x_offset + x, y_offset - (y+r)) = HIGHLIGHT_COLOUR;
     for (int r = -radius; r <= radius; ++r)
-      canvas(x_offset + (x + r), y_offset - y) = HIGHLIGHT_IDX;
+      canvas(x_offset + (x + r), y_offset - y) = HIGHLIGHT_COLOUR;
 
     connect_dots = true;
     last_x = x; last_y = y;
@@ -437,12 +437,12 @@ void display (ImageType& image, Sixel::ColourMaps& colourmaps)
           int y = std::round(y_dim - image.spacing(y_axis) * (focus[y_axis] + 0.5) * zoom);
           x = std::max (std::min (x, x_dim-1), 0);
           y = std::max (std::min (y, y_dim-1), 0);
-          view.draw_crosshairs(x+dx, y+dy, CROSSHAIR_IDX);
+          view.draw_crosshairs(x+dx, y+dy, CROSSHAIR_COLOUR);
         }
 
         //if (slice_axis == 2) encoder.draw_colourbar ();
 
-        //view.frame ((interactive && slice_axis == backup_slice_axis) ? HIGHLIGHT_IDX : FRAME_IDX);
+        //view.frame ((interactive && slice_axis == backup_slice_axis) ? HIGHLIGHT_COLOUR : STANDARD_COLOUR);
       }
       slice_axis = backup_slice_axis;
       set_axes();
@@ -464,7 +464,7 @@ void display (ImageType& image, Sixel::ColourMaps& colourmaps)
         int y = std::round(y_dim - image.spacing(y_axis) * (focus[y_axis] + 0.5) * zoom);
         x = std::max (std::min (x, x_dim-1), 0);
         y = std::max (std::min (y, y_dim-1), 0);
-        view.draw_crosshairs (x, y, CROSSHAIR_IDX);
+        view.draw_crosshairs (x, y, CROSSHAIR_COLOUR);
       }
 
       //view.draw_colourbar ();
