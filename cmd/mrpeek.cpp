@@ -17,6 +17,13 @@ using namespace VT;
 #define DEFAULT_PMIN 0.2
 #define DEFAULT_PMAX 99.8
 
+#define CROSSHAIR_COLOUR 1
+#define STANDARD_COLOUR 2
+#define HIGHLIGHT_COLOUR 3
+#define STATIC_CMAP { {0,0,0}, { 100,100,0 }, {50,50,50}, {100,100,100} }
+
+#define COLOURBAR_WIDTH = 20;
+
 vector<std::string> colourmap_choices_std;
 vector<const char*> colourmap_choices_cstr;
 
@@ -117,11 +124,6 @@ using value_type = float;
 using ImageType = Image<value_type>;
 using Reslicer = Adapter::Reslice<Interp::Nearest, ImageType>;
 
-
-#define CROSSHAIR_COLOUR 1
-#define STANDARD_COLOUR 2
-#define HIGHLIGHT_COLOUR 3
-#define STATIC_CMAP { {0,0,0}, { 100,100,0 }, {50,50,50}, {100,100,100} }
 
 
 
@@ -288,6 +290,17 @@ void display_slice (Reslicer& regrid, const Sixel::ViewPort& view, const Sixel::
 
 
 
+void draw_colourbar (const Sixel::ViewPort& view, const Sixel::CMap& cmap)
+{
+  for (int y = 0; y < view.ydim(); ++y) {
+    int colour = std::round (cmap.levels() * float (y)/view.ydim());
+    for (int x = 0; x < view.xdim(); ++x)
+      view (x,y) = colour;
+  }
+}
+
+
+
 
 
 std::string plot (ImageType& image, int plot_axis)
@@ -420,6 +433,10 @@ std::string display (ImageType& image, Sixel::ColourMaps& colourmaps)
     if (!cmap.scaling_set())
       autoscale (image, cmap);
 
+    if (arrow_mode == ARROW_COLOUR)
+      out += TextForegroundYellow;
+    out += str(cmap.min(),4) + TextReset + move_cursor(Down,1) + CarriageReturn;
+
     if (orthoview) {
       const int backup_slice_axis = slice_axis;
 
@@ -485,13 +502,14 @@ std::string display (ImageType& image, Sixel::ColourMaps& colourmaps)
       // encode buffer and print out:
       out += encoder.write();
     }
+
+    if (arrow_mode == ARROW_COLOUR)
+      out += TextForegroundYellow;
+    out += str(cmap.max(), 4) + TextReset + move_cursor(Down,1) + CarriageReturn;
   }
 
 
-  out += show_focus(image) + " [ ";
-  if (arrow_mode == ARROW_COLOUR)
-    out += TextForegroundYellow;
-  out += str(cmap.min()) + " " + str (cmap.max()) + TextReset + " ] ";
+  out += show_focus(image);
 
   if (orthoview) {
     out += "| active: ";
