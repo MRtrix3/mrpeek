@@ -515,40 +515,46 @@ void display (ImageType& image, Sixel::ColourMaps& colourmaps)
 
 void show_help ()
 {
-  std::cout << VT::ClearScreen;
-  int row = 2;
-  std::cout << VT::position_cursor_at (row++, 2) << "mrpeek key bindings:";
-  row++;
-  std::cout << VT::position_cursor_at (row++, 4) << "up/down               previous/next slice";
-  std::cout << VT::position_cursor_at (row++, 4) << "left/right            previous/next volume";
-  std::cout << VT::position_cursor_at (row++, 4) << "a / s / c             axial / sagittal / coronal projection";
-  std::cout << VT::position_cursor_at (row++, 4) << "o                     toggle orthoview";
-  std::cout << VT::position_cursor_at (row++, 4) << "m                     toggle image display";
-  std::cout << VT::position_cursor_at (row++, 4) << "v                     choose volume dimension";
-  std::cout << VT::position_cursor_at (row++, 4) << "- / +                 zoom out / in";
-  std::cout << VT::position_cursor_at (row++, 4) << "x / <space>           toggle arrow key crosshairs control";
-  std::cout << VT::position_cursor_at (row++, 4) << "b                     toggle arrow key brightness control";
-  std::cout << VT::position_cursor_at (row++, 4) << "f                     show / hide crosshairs";
-  std::cout << VT::position_cursor_at (row++, 4) << "r                     reset focus";
-  std::cout << VT::position_cursor_at (row++, 4) << "left mouse & drag     move focus";
-  std::cout << VT::position_cursor_at (row++, 4) << "right mouse & drag    adjust brightness / contrast";
-  std::cout << VT::position_cursor_at (row++, 4) << "Esc                   reset brightness / contrast";
-  std::cout << VT::position_cursor_at (row++, 4) << "1-9                   select colourmap";
-  std::cout << VT::position_cursor_at (row++, 4) << "l                     select number of colourmap levels";
-  std::cout << VT::position_cursor_at (row++, 4) << "p                     intensity plot along specified axis";
-  row++;
-  std::cout << VT::position_cursor_at (row++, 4) << "q / Q / Crtl-C        exit mrpeek";
-  row++;
-  std::cout << VT::position_cursor_at (row++, 4) << "press any key to exit help page";
+  using namespace VT;
+  auto key = [](const char* left, const char* right) {
+    return move_cursor(Down,1) + position_cursor_at_col (3) + left
+      + position_cursor_at_col (26) + right;
+  };
 
+  std::string out = ClearScreen;
+  out += CursorHome
+    + key ("mrpeek key bindings:", "")
+    + move_cursor(Down,1)
+    + key ("up/down", "previous/next slice")
+    + key ("left/right", "previous/next volume")
+    + key ("a / s / c", "axial / sagittal / coronal projection")
+    + key ("o", "toggle orthoview")
+    + key ("m", "toggle image display")
+    + key ("v", "choose volume dimension")
+    + key ("- / +", "zoom out / in")
+    + key ("x / <space>", "toggle arrow key crosshairs control")
+    + key ("b", "toggle arrow key brightness control")
+    + key ("f", "show / hide crosshairs")
+    + key ("r", "reset focus")
+    + key ("left mouse & drag", "move focus")
+    + key ("right mouse & drag", "adjust brightness / contrast")
+    + key ("Esc", "reset brightness / contrast")
+    + key ("1-9", "select colourmap")
+    + key ("l", "select number of colourmap levels")
+    + key ("p", "intensity plot along specified axis")
+    + move_cursor(Down,1)
+    + key ("q / Q / Crtl-C", "exit mrpeek")
+    + move_cursor(Down,1)
+    + key ("press any key to exit help page", "");
 
+  std::cout << out;
   std::cout.flush();
 
   int event, x, y;
-  while ((event = VT::read_user_input(x, y)) == 0)
+  while ((event = read_user_input(x, y)) == 0)
     std::this_thread::sleep_for (std::chrono::milliseconds(10));
 
-  std::cout << VT::ClearScreen;
+  std::cout << ClearScreen;
   std::cout.flush();
 }
 

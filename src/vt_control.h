@@ -2,29 +2,30 @@
 #define __VT_CODES_H__
 
 #include <sstream>
+#include "mrtrix.h"
 
 namespace MR {
   namespace VT {
 
-    constexpr const char* ClearScreen = "\033[2J";
-    constexpr const char* SaveScreen = "\033[?47h";
-    constexpr const char* RestoreScreen = "\033[?47l";
-    constexpr const char* CursorHome = "\033[H";
-    constexpr const char* ClearLine = "\033[2K";
-    constexpr const char* ClearLineFromCursorRight = "\033[0K";
+    constexpr const char* ClearScreen = "\x1b[2J";
+    constexpr const char* SaveScreen = "\x1b[?47h";
+    constexpr const char* RestoreScreen = "\x1b[?47l";
+    constexpr const char* CursorHome = "\x1b[H";
+    constexpr const char* ClearLine = "\x1b[2K";
+    constexpr const char* ClearLineFromCursorRight = "\x1b[0K";
     constexpr const char* CarriageReturn = "\r";
 
-    constexpr const char* CursorOff = "\033[?25l";
-    constexpr const char* CursorOn = "\033[?25h";
+    constexpr const char* CursorOff = "\x1b[?25l";
+    constexpr const char* CursorOn = "\x1b[?25h";
 
-    constexpr const char* TextUnderscore = "\033[4m";
-    constexpr const char* TextForegroundYellow = "\033[33m";
-    constexpr const char* TextReset = "\033[0m";
+    constexpr const char* TextUnderscore = "\x1b[4m";
+    constexpr const char* TextForegroundYellow = "\x1b[33m";
+    constexpr const char* TextReset = "\x1b[0m";
 
-    constexpr const char* MouseTrackingOn = "\033[?1002h";
-    constexpr const char* MouseTrackingOff = "\033[?1002l";
+    constexpr const char* MouseTrackingOn = "\x1b[?1002h";
+    constexpr const char* MouseTrackingOff = "\x1b[?1002l";
 
-    constexpr char Escape = '\033';
+    constexpr char Escape = '\x1b';
     constexpr char CtrlC = '\x03';
     constexpr char Backspace = '\x7F';
     constexpr int Up = 0x0101;
@@ -51,24 +52,22 @@ namespace MR {
     constexpr inline int Ctrl (int c) { return c & 0x1F; }
 
     inline std::string position_cursor_at (int row, int column)
-    {
-      std::ostringstream stream;
-      stream << "\033[" << row << ";" << column << "H";
-      return stream.str();
-    }
+    { return MR::printf ("\x1b[%d;%dH", row, column); }
+
     inline std::string move_cursor (int direction, int n)
     {
-      std::ostringstream stream;
-      stream << "\033[" << n;
-       switch (direction) {
-         case Up:    stream << "A"; break;
-         case Down:  stream << "B"; break;
-         case Left:  stream << "D"; break;
-         case Right: stream << "C"; break;
-         default: assert (0 /* invalid cursor direction */);
-       }
-      return stream.str();
+      char d=0;
+      switch (direction) {
+        case Up:    d = 'A'; break;
+        case Down:  d = 'B'; break;
+        case Left:  d = 'D'; break;
+        case Right: d = 'C'; break;
+        default: assert (0 /* invalid cursor direction */);
+      }
+      return MR::printf ("\x1b[%d", n)+d;
     }
+    inline std::string position_cursor_at_col (int col)
+    { return MR::printf ("\x1b[%dG", col); }
 
 
     void enter_raw_mode();
