@@ -11,6 +11,7 @@
 
 using namespace MR;
 using namespace App;
+using namespace VT;
 
 
 #define DEFAULT_PMIN 0.2
@@ -187,21 +188,21 @@ inline void show_focus (ImageType& image)
   image.index(0) = focus[0];
   image.index(1) = focus[1];
   image.index(2) = focus[2];
-  std::cout << VT::ClearLine;
+  std::cout << ClearLine;
 
   std::cout << "index: [ ";
   for (int d = 0; d < 3; d++) {
-    if (d == x_axis) {if (arrow_mode == ARROW_CROSSHAIR) std::cout << "\u2194" << VT::TextForegroundYellow; std::cout << VT::TextUnderscore; }
-    else if (d == y_axis) {if (arrow_mode == ARROW_CROSSHAIR) std::cout << "\u2195" << VT::TextForegroundYellow; std::cout << VT::TextUnderscore; }
-    else {if (arrow_mode == ARROW_SLICEVOL) std::cout << "\u2195" << VT::TextForegroundYellow; }
+    if (d == x_axis) {if (arrow_mode == ARROW_CROSSHAIR) std::cout << "\u2194" << TextForegroundYellow; std::cout << TextUnderscore; }
+    else if (d == y_axis) {if (arrow_mode == ARROW_CROSSHAIR) std::cout << "\u2195" << TextForegroundYellow; std::cout << TextUnderscore; }
+    else {if (arrow_mode == ARROW_SLICEVOL) std::cout << "\u2195" << TextForegroundYellow; }
     std::cout << focus[d];
-    std::cout << VT::TextReset;
+    std::cout << TextReset;
     std::cout << " ";
   }
   for (size_t n = 3; n < image.ndim(); ++n) {
-    if (n == vol_axis && arrow_mode == ARROW_SLICEVOL) std::cout << "\u2194" << VT::TextForegroundYellow;
+    if (n == vol_axis && arrow_mode == ARROW_SLICEVOL) std::cout << "\u2194" << TextForegroundYellow;
     std::cout << image.index(n);
-    std::cout << VT::TextReset << " ";
+    std::cout << TextReset << " ";
   }
   std::cout << "] ";
 
@@ -375,11 +376,11 @@ void plot (ImageType& image, int plot_axis)
   }
 
   // encode buffer and print out:
-  std::cout << VT::move_cursor (VT::Down, 2) << VT::CarriageReturn << vmax
-    << VT::move_cursor (VT::Down, 1) << VT::CarriageReturn;
+  std::cout << move_cursor (Down, 2) << CarriageReturn << vmax
+    << move_cursor (Down, 1) << CarriageReturn;
   encoder.write();
-  std::cout << VT::ClearLine << vmin
-    << VT::move_cursor (VT::Down, 1) << VT::CarriageReturn << VT::ClearLine
+  std::cout << ClearLine << vmin
+    << move_cursor (Down, 1) << CarriageReturn << ClearLine
     << "plot axis: " << plot_axis << " | x range: [ 0 " << plotslice.size() - 1 << " ]";
 
   std::cout.flush();
@@ -477,22 +478,22 @@ void display (ImageType& image, Sixel::ColourMaps& colourmaps)
 
   show_focus(image);
   std::cout << " [ ";
-  if (arrow_mode == ARROW_COLOUR) std::cout << VT::TextForegroundYellow;
-  std::cout << cmap.min() << " " << cmap.max() << VT::TextReset;
+  if (arrow_mode == ARROW_COLOUR) std::cout << TextForegroundYellow;
+  std::cout << cmap.min() << " " << cmap.max() << TextReset;
   std::cout << " ] ";
 
   if (orthoview) {
     std::cout << "| active: ";
     switch (slice_axis) {
-      case (0): std::cout << VT::TextUnderscore << "s" << VT::TextReset << "agittal "; break;
-      case (1): std::cout << VT::TextUnderscore << "c" << VT::TextReset << "oronal "; break;
-      case (2): std::cout << VT::TextUnderscore << "a" << VT::TextReset << "xial "; break;
+      case (0): std::cout << TextUnderscore << "s" << TextReset << "agittal "; break;
+      case (1): std::cout << TextUnderscore << "c" << TextReset << "oronal "; break;
+      case (2): std::cout << TextUnderscore << "a" << TextReset << "xial "; break;
       default: break;
     };
   }
 
   if (interactive)
-    std::cout << "| help: " << VT::TextUnderscore << "?" << VT::TextReset;
+    std::cout << "| help: " << TextUnderscore << "?" << TextReset;
 
   if (do_plot)
     plot (image, plot_axis);
@@ -515,7 +516,6 @@ void display (ImageType& image, Sixel::ColourMaps& colourmaps)
 
 void show_help ()
 {
-  using namespace VT;
   auto key = [](const char* left, const char* right) {
     return move_cursor(Down,1) + position_cursor_at_col (3) + left
       + position_cursor_at_col (26) + right;
@@ -559,27 +559,30 @@ void show_help ()
 }
 
 
+
+
+
 bool query_int (const std::string& prompt,
     int& value,
     int vmin = std::numeric_limits<int>::min(),
     int vmax = std::numeric_limits<int>::max())
 {
-  std::cout << VT::CarriageReturn << VT::ClearLine << prompt;
+  std::cout << CarriageReturn << ClearLine << prompt;
   std::cout.flush();
 
   int event, x, y;
   std::string response;
-  while ((event = VT::read_user_input(x, y)) != '\r') {
+  while ((event = read_user_input(x, y)) != '\r') {
     std::this_thread::sleep_for (std::chrono::milliseconds(10));
     if (event >= '0' && event <= '9') {
       response += char(event);
       std::cout << char(event);
       std::cout.flush();
     }
-    else if (event == VT::Backspace) {
+    else if (event == Backspace) {
       if (response.size()) {
         response.pop_back();
-        std::cout << VT::move_cursor (VT::Left, 1) << VT::ClearLineFromCursorRight;
+        std::cout << move_cursor (Left, 1) << ClearLineFromCursorRight;
         std::cout.flush();
       }
     }
@@ -665,7 +668,7 @@ void run ()
 
 
   // start loop
-  VT::enter_raw_mode();
+  enter_raw_mode();
   Sixel::init();
 
   try {
@@ -676,9 +679,9 @@ void run ()
 
     do {
 
-      while ((event = VT::read_user_input(x, y)) == 0) {
+      while ((event = read_user_input(x, y)) == 0) {
         if (need_update) {
-          std::cout << VT::ClearScreen << VT::CursorHome;
+          std::cout << ClearScreen << CursorHome;
           display (image, colourmaps);
           need_update = false;
         }
@@ -693,23 +696,23 @@ void run ()
       need_update = true;
 
       switch (event) {
-        case VT::Up:
+        case Up:
           switch(arrow_mode) {
             case ARROW_SLICEVOL:  ++focus[slice_axis];   break;
             case ARROW_CROSSHAIR: ++focus[y_axis]; break;
             case ARROW_COLOUR:    colourmaps[1].update_scaling (0, -1); break;
             default: break;
           } break;
-        case VT::MouseWheelUp: ++focus[slice_axis]; break;
-        case VT::Down:
+        case MouseWheelUp: ++focus[slice_axis]; break;
+        case Down:
           switch(arrow_mode) {
             case ARROW_SLICEVOL:  --focus[slice_axis];   break;
             case ARROW_CROSSHAIR: --focus[y_axis]; break;
             case ARROW_COLOUR:    colourmaps[1].update_scaling (0, 1); break;
             default: break;
           } break;
-        case VT::MouseWheelDown: --focus[slice_axis]; break;
-        case VT::Left:
+        case MouseWheelDown: --focus[slice_axis]; break;
+        case Left:
           switch(arrow_mode) {
             case ARROW_SLICEVOL:  if (vol_axis >= 0) {
                                     --image.index(vol_axis);
@@ -719,7 +722,7 @@ void run ()
             case ARROW_COLOUR:    colourmaps[1].update_scaling (-1, 0); break;
             default: break;
           } break;
-        case VT::Right:
+        case Right:
           switch(arrow_mode) {
             case ARROW_SLICEVOL:  if (vol_axis >= 0) {
                                     ++image.index(vol_axis);
@@ -743,9 +746,9 @@ void run ()
         case ' ':
         case 'x': arrow_mode = x_arrow_mode = (x_arrow_mode == ARROW_SLICEVOL) ? ARROW_CROSSHAIR : ARROW_SLICEVOL; break;
         case 'b': arrow_mode = (arrow_mode == ARROW_COLOUR) ? x_arrow_mode : ARROW_COLOUR; break;
-        case VT::MouseMoveLeft: focus[x_axis] += xp-x; focus[y_axis] += yp-y; break;
-        case VT::Escape: colourmaps[1].invalidate_scaling(); break;
-        case VT::MouseMoveRight: colourmaps[1].update_scaling (x-xp, y-yp); break;
+        case MouseMoveLeft: focus[x_axis] += xp-x; focus[y_axis] += yp-y; break;
+        case Escape: colourmaps[1].invalidate_scaling(); break;
+        case MouseMoveRight: colourmaps[1].update_scaling (x-xp, y-yp); break;
         case 'l': {
                     int n;
                     if (query_int ("select number of levels: ", n, 1, 254)) {
@@ -771,12 +774,12 @@ void run ()
       xp = x;
       yp = y;
 
-    } while (!(event == 'q' || event == 'Q' || event == VT::Ctrl('c') || event == VT::Ctrl('q')));
-    VT::exit_raw_mode();
+    } while (!(event == 'q' || event == 'Q' || event == Ctrl('c') || event == Ctrl('q')));
+    exit_raw_mode();
 
   }
   catch (Exception&) {
-    VT::exit_raw_mode();
+    exit_raw_mode();
     throw;
   }
 
