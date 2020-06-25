@@ -183,30 +183,41 @@ inline void set_axes ()
 
 
 
-inline void show_focus (ImageType& image)
+inline std::string show_focus (ImageType& image)
 {
   image.index(0) = focus[0];
   image.index(1) = focus[1];
   image.index(2) = focus[2];
-  std::cout << ClearLine;
+  std::string out = ClearLine;
+  out += "index: [ ";
 
-  std::cout << "index: [ ";
   for (int d = 0; d < 3; d++) {
-    if (d == x_axis) {if (arrow_mode == ARROW_CROSSHAIR) std::cout << "\u2194" << TextForegroundYellow; std::cout << TextUnderscore; }
-    else if (d == y_axis) {if (arrow_mode == ARROW_CROSSHAIR) std::cout << "\u2195" << TextForegroundYellow; std::cout << TextUnderscore; }
-    else {if (arrow_mode == ARROW_SLICEVOL) std::cout << "\u2195" << TextForegroundYellow; }
-    std::cout << focus[d];
-    std::cout << TextReset;
-    std::cout << " ";
+    if (d == x_axis) {
+      if (arrow_mode == ARROW_CROSSHAIR)
+        out += std::string(LeftRightArrow) + TextForegroundYellow;
+      out += TextUnderscore;
+    }
+    else if (d == y_axis) {
+      if (arrow_mode == ARROW_CROSSHAIR)
+        out += std::string(UpDownArrow) + TextForegroundYellow;
+      out += TextUnderscore;
+    }
+    else {
+      if (arrow_mode == ARROW_SLICEVOL)
+        out += std::string(LeftRightArrow) + TextForegroundYellow;
+    }
+    out += str(focus[d]) + TextReset + " ";
   }
   for (size_t n = 3; n < image.ndim(); ++n) {
-    if (n == vol_axis && arrow_mode == ARROW_SLICEVOL) std::cout << "\u2194" << TextForegroundYellow;
-    std::cout << image.index(n);
-    std::cout << TextReset << " ";
+    if (n == vol_axis && arrow_mode == ARROW_SLICEVOL)
+      out += std::string(UpDownArrow) + TextForegroundYellow;
+    out += str(image.index(n)) + TextReset + " ";
   }
-  std::cout << "] ";
+  out += "] ";
 
-  std::cout << "| value: " << image.value();
+  out += "| value: " + str(image.value());
+
+  return out;
 }
 
 
@@ -279,7 +290,7 @@ void display_slice (Reslicer& regrid, const Sixel::ViewPort& view, const Sixel::
 
 
 
-void plot (ImageType& image, int plot_axis)
+std::string plot (ImageType& image, int plot_axis)
 {
   set_axes();
 
@@ -376,14 +387,14 @@ void plot (ImageType& image, int plot_axis)
   }
 
   // encode buffer and print out:
-  std::cout << move_cursor (Down, 2) << CarriageReturn << vmax
-    << move_cursor (Down, 1) << CarriageReturn;
-  encoder.write();
-  std::cout << ClearLine << vmin
-    << move_cursor (Down, 1) << CarriageReturn << ClearLine
-    << "plot axis: " << plot_axis << " | x range: [ 0 " << plotslice.size() - 1 << " ]";
+  std::string out = move_cursor (Down, 2);
+  out += CarriageReturn + str(vmax) + move_cursor(Down,1) + CarriageReturn
+    + encoder.write()
+    + ClearLine + str(vmin)
+    + move_cursor(Down,1) + CarriageReturn + ClearLine
+    + "plot axis: " + str(plot_axis) + " | x range: [ 0 " + str(plotslice.size() - 1) + " ]";
 
-  std::cout.flush();
+  return out;
 }
 
 
@@ -394,8 +405,9 @@ void plot (ImageType& image, int plot_axis)
 
 // Show the main image,
 // run repeatedly to update display.
-void display (ImageType& image, Sixel::ColourMaps& colourmaps)
+std::string display (ImageType& image, Sixel::ColourMaps& colourmaps)
 {
+  std::string out;
   auto& cmap = colourmaps[1];
 
   if (show_image) {
@@ -449,7 +461,7 @@ void display (ImageType& image, Sixel::ColourMaps& colourmaps)
       set_axes();
 
       // encode buffer and print out:
-      encoder.write();
+      out += encoder.write();
     }
     else {
       auto regrid = get_regridder (image, slice_axis);
@@ -471,34 +483,32 @@ void display (ImageType& image, Sixel::ColourMaps& colourmaps)
       //view.draw_colourbar ();
 
       // encode buffer and print out:
-      encoder.write();
+      out += encoder.write();
     }
   }
 
 
-  show_focus(image);
-  std::cout << " [ ";
-  if (arrow_mode == ARROW_COLOUR) std::cout << TextForegroundYellow;
-  std::cout << cmap.min() << " " << cmap.max() << TextReset;
-  std::cout << " ] ";
+  out += show_focus(image) + " [ ";
+  if (arrow_mode == ARROW_COLOUR)
+    out += TextForegroundYellow;
+  out += str(cmap.min()) + " " + str (cmap.max()) + TextReset + " ] ";
 
   if (orthoview) {
-    std::cout << "| active: ";
+    out += "| active: ";
     switch (slice_axis) {
-      case (0): std::cout << TextUnderscore << "s" << TextReset << "agittal "; break;
-      case (1): std::cout << TextUnderscore << "c" << TextReset << "oronal "; break;
-      case (2): std::cout << TextUnderscore << "a" << TextReset << "xial "; break;
+      case (0): out += std::string (TextUnderscore) + "s" + TextReset + "agittal "; break;
+      case (1): out += std::string (TextUnderscore) + "c" + TextReset + "oronal "; break;
+      case (2): out += std::string (TextUnderscore) + "a" + TextReset + "xial "; break;
       default: break;
     };
   }
 
   if (interactive)
-    std::cout << "| help: " << TextUnderscore << "?" << TextReset;
-
+    out += std::string("| help: ") + TextUnderscore + "?" + TextReset;
   if (do_plot)
-    plot (image, plot_axis);
+    out += plot (image, plot_axis);
 
-  std::cout.flush();
+  return out;
 }
 
 
@@ -555,7 +565,6 @@ void show_help ()
     std::this_thread::sleep_for (std::chrono::milliseconds(10));
 
   std::cout << ClearScreen;
-  std::cout.flush();
 }
 
 
@@ -661,8 +670,7 @@ void run ()
   //CONF option: MRPeekInteractive
   if (!interactive or !get_option_value ("interactive", File::Config::get_bool ("MRPeekInteractive", true))) {
     interactive = false;
-    display (image, colourmaps);
-    std::cout << "\n";
+    std::cout << display (image, colourmaps) << "\n";
     return;
   }
 
@@ -681,8 +689,8 @@ void run ()
 
       while ((event = read_user_input(x, y)) == 0) {
         if (need_update) {
-          std::cout << ClearScreen << CursorHome;
-          display (image, colourmaps);
+          std::cout << ClearScreen << CursorHome << display (image, colourmaps);
+          std::cout.flush();
           need_update = false;
         }
         std::this_thread::sleep_for (std::chrono::milliseconds(10));

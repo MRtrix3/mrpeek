@@ -206,8 +206,8 @@ namespace MR {
           current (255),
           repeats (0) { }
 
-        // once slice is fully specified, encode and write to stdout:
-        void write () {
+        // once slice is fully specified, encode and write to string:
+        std::string write () {
           std::string out = SixelStart + colourmap.specifier();
 
           int y = 0;
@@ -219,7 +219,7 @@ namespace MR {
           if (need_newline_after_sixel)
             out += VT::move_cursor (VT::Down,1) + VT::CarriageReturn;
 
-          std::cout << out;
+          return out;
         }
 
         ViewPort viewport (int x, int y, int size_x = -1, int size_y = -1) {

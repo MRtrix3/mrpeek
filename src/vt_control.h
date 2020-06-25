@@ -25,6 +25,9 @@ namespace MR {
     constexpr const char* MouseTrackingOn = "\x1b[?1002h";
     constexpr const char* MouseTrackingOff = "\x1b[?1002l";
 
+    constexpr const char* LeftRightArrow = "\u2194";
+    constexpr const char* UpDownArrow = "\u2194";
+
     constexpr char Escape = '\x1b';
     constexpr char CtrlC = '\x03';
     constexpr char Backspace = '\x7F';
