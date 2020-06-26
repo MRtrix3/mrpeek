@@ -10,6 +10,9 @@ namespace MR {
 
     namespace {
       bool need_newline_after_sixel = true;
+#ifndef NDEBUG
+      uint8_t* data_debug = nullptr;
+#endif
     }
 
     constexpr float BrightnessIncrement = 0.01f;
@@ -137,9 +140,22 @@ namespace MR {
           data (data),
           x_dim (x_dim),
           y_dim (y_dim),
-          x_stride (x_stride) { }
+          x_stride (x_stride) {
+#ifndef NDEBUG
+            int x = (data - data_debug) % x_stride;
+            int y = (data - data_debug) / x_stride;
+            std::cerr << "viewport at " << x << " " << y
+              << ", size " << x_dim << " " << y_dim
+              << ", stride " << x_stride
+              << ", max " << x+x_dim << " " << y+y_dim << "\n";
+#endif
+          }
 
-        uint8_t& operator() (int x, int y) const { return data[x+x_stride*y]; }
+        uint8_t& operator() (int x, int y) const {
+          assert (x >= 0 && x < x_dim);
+          assert (y >= 0 && y < y_dim);
+          return data[x+x_stride*y];
+        }
 
         // add crosshairs at the specified position,
         // using colour index specified:
@@ -168,23 +184,6 @@ namespace MR {
           return { data + x + y*x_stride, size_x, size_y, x_stride };
         }
 
-        /*
-           void draw_colourbar () {
-           const int h = 90, w = 14;
-           if (x_dim < 2*w || y_dim < 2*h)
-           return;
-           int y1 = y_dim-4, y0 = y1-h-1;
-           int x1 = x_dim-4, x0 = x1-w-1;
-
-           for (int y = y0; y <= y1; y++) {
-           int val = (h-(y-y0)) * colourmap.range() / h;
-           for (int x = x0; x <= x1; x++) {
-           data[mapxy(x,y)] = (y==y0 || y==y1 || x==x0 || x==x1) ? colourmap.crosshairs() : val;
-           }
-           }
-           }
-           */
-
       private:
         uint8_t* data;
         int x_dim, y_dim, x_stride;
@@ -204,7 +203,11 @@ namespace MR {
           y_dim (y_dim),
           data (x_dim*y_dim, 0),
           current (255),
-          repeats (0) { }
+          repeats (0) {
+#ifndef NDEBUG
+            data_debug = &data[0]; std::cerr << "canvas: " << x_dim << " " << y_dim << "\n";
+#endif
+          }
 
         // once slice is fully specified, encode and write to string:
         std::string write () {

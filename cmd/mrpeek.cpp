@@ -22,7 +22,7 @@ using namespace VT;
 #define HIGHLIGHT_COLOUR 3
 #define STATIC_CMAP { {0,0,0}, { 100,100,0 }, {50,50,50}, {100,100,100} }
 
-#define COLOURBAR_WIDTH = 20;
+#define COLOURBAR_WIDTH 10
 
 vector<std::string> colourmap_choices_std;
 vector<const char*> colourmap_choices_cstr;
@@ -293,11 +293,12 @@ void display_slice (Reslicer& regrid, const Sixel::ViewPort& view, const Sixel::
 void draw_colourbar (const Sixel::ViewPort& view, const Sixel::CMap& cmap)
 {
   for (int y = 0; y < view.ydim(); ++y) {
-    int colour = std::round (cmap.levels() * float (y)/view.ydim());
+    int colour = cmap.index + std::round (cmap.levels() * (1.0f-float (y)/view.ydim()));
     for (int x = 0; x < view.xdim(); ++x)
       view (x,y) = colour;
   }
 }
+
 
 
 
@@ -416,6 +417,88 @@ std::string plot (ImageType& image, int plot_axis)
 
 
 
+
+std::string display_image (ImageType& image, const Sixel::CMap& cmap, int colourbar_offset)
+{
+  std::string out;
+  if (orthoview) {
+    const int backup_slice_axis = slice_axis;
+
+    Reslicer regrid[3] = {
+      get_regridder (image, 0),
+      get_regridder (image, 1),
+      get_regridder (image, 2)
+    };
+
+    // set up canvas:
+    int panel_y_dim = std::max(regrid[1].size(1), regrid[2].size(1));
+    Sixel::Encoder encoder (colourbar_offset + regrid[0].size(1)+regrid[1].size(0)+regrid[2].size(0),
+        panel_y_dim, colourmaps);
+
+    draw_colourbar (encoder.viewport (0, 0, COLOURBAR_WIDTH), cmap);
+
+
+    int x_pos = colourbar_offset;
+    for (slice_axis = 0; slice_axis < 3; ++slice_axis) {
+      set_axes();
+      const int x_dim = regrid[slice_axis].size (x_axis);
+      const int y_dim = regrid[slice_axis].size (y_axis);
+      // recentring
+      const int dy = (panel_y_dim - y_dim) / 2;
+      auto view = encoder.viewport (x_pos, 0, regrid[slice_axis].size (x_axis), panel_y_dim);
+      display_slice (regrid[slice_axis], view.viewport (0, dy), cmap);
+
+      if (crosshair) {
+        int x = std::round(x_dim - image.spacing(x_axis) * (focus[x_axis] + 0.5) * zoom);
+        int y = std::round(y_dim - image.spacing(y_axis) * (focus[y_axis] + 0.5) * zoom);
+        x = std::max (std::min (x, x_dim-1), 0);
+        y = std::max (std::min (y, y_dim-1), 0);
+        view.draw_crosshairs(x, y+dy, CROSSHAIR_COLOUR);
+      }
+
+      if (interactive && slice_axis == backup_slice_axis)
+        view.frame (HIGHLIGHT_COLOUR);
+
+      x_pos += regrid[slice_axis].size (x_axis);
+    }
+    slice_axis = backup_slice_axis;
+    set_axes();
+
+    // encode buffer and print out:
+    out += encoder.write();
+  }
+  else {
+    auto regrid = get_regridder (image, slice_axis);
+    const int x_dim = regrid.size (x_axis);
+    const int y_dim = regrid.size (y_axis);
+
+    Sixel::Encoder encoder (colourbar_offset+x_dim, y_dim, colourmaps);
+    draw_colourbar (encoder.viewport (0, 0, COLOURBAR_WIDTH), cmap);
+
+    auto view = encoder.viewport(colourbar_offset, 0);
+    display_slice (regrid, view, cmap);
+
+    if (crosshair) {
+      int x = std::round(x_dim - image.spacing(x_axis) * (focus[x_axis] + 0.5) * zoom);
+      int y = std::round(y_dim - image.spacing(y_axis) * (focus[y_axis] + 0.5) * zoom);
+      x = std::max (std::min (x, x_dim-1), 0);
+      y = std::max (std::min (y, y_dim-1), 0);
+      view.draw_crosshairs (x, y, CROSSHAIR_COLOUR);
+    }
+
+    //view.draw_colourbar ();
+
+    // encode buffer and print out:
+    out += encoder.write();
+  }
+  return out;
+}
+
+
+
+
+
+
 // Show the main image,
 // run repeatedly to update display.
 std::string display (ImageType& image, Sixel::ColourMaps& colourmaps)
@@ -433,96 +516,33 @@ std::string display (ImageType& image, Sixel::ColourMaps& colourmaps)
     if (!cmap.scaling_set())
       autoscale (image, cmap);
 
+    out += ClearLine;
     if (arrow_mode == ARROW_COLOUR)
       out += TextForegroundYellow;
-    out += str(cmap.min(),4) + TextReset + move_cursor(Down,1) + CarriageReturn;
+    out += str(cmap.max(),4) + TextReset + move_cursor(Down,1) + position_cursor_at_col (2);
 
-    if (orthoview) {
-      const int backup_slice_axis = slice_axis;
-
-      Reslicer regrid[3] = {
-        get_regridder (image, 0),
-        get_regridder (image, 1),
-        get_regridder (image, 2)
-      };
-
-      // calculate panel dimensions
-      int panel_x_dim = std::max(regrid[2].size(0), regrid[0].size(0));
-      int panel_y_dim = std::max(regrid[1].size(1), regrid[2].size(1));
-
-      Sixel::Encoder encoder (3*panel_x_dim, panel_y_dim, colourmaps);
-
-      for (slice_axis = 0; slice_axis < 3; ++slice_axis) {
-        set_axes();
-        const int x_dim = regrid[slice_axis].size (x_axis);
-        const int y_dim = regrid[slice_axis].size (y_axis);
-        // recentring
-        const int dx = (panel_x_dim - x_dim) / 2;
-        const int dy = (panel_y_dim - y_dim) / 2;
-        auto view = encoder.viewport (slice_axis*panel_x_dim, 0, panel_x_dim, panel_y_dim);
-        display_slice (regrid[slice_axis], view.viewport (dx, dy), cmap);
-
-        if (crosshair) {
-          int x = std::round(x_dim - image.spacing(x_axis) * (focus[x_axis] + 0.5) * zoom);
-          int y = std::round(y_dim - image.spacing(y_axis) * (focus[y_axis] + 0.5) * zoom);
-          x = std::max (std::min (x, x_dim-1), 0);
-          y = std::max (std::min (y, y_dim-1), 0);
-          view.draw_crosshairs(x+dx, y+dy, CROSSHAIR_COLOUR);
-        }
-
-        //if (slice_axis == 2) encoder.draw_colourbar ();
-
-        //view.frame ((interactive && slice_axis == backup_slice_axis) ? HIGHLIGHT_COLOUR : STANDARD_COLOUR);
-      }
-      slice_axis = backup_slice_axis;
-      set_axes();
-
-      // encode buffer and print out:
-      out += encoder.write();
-    }
-    else {
-      auto regrid = get_regridder (image, slice_axis);
-      const int x_dim = regrid.size (x_axis);
-      const int y_dim = regrid.size (y_axis);
-
-      Sixel::Encoder encoder (x_dim, y_dim, colourmaps);
-      auto view = encoder.viewport();
-      display_slice (regrid, view, cmap);
-
-      if (crosshair) {
-        int x = std::round(x_dim - image.spacing(x_axis) * (focus[x_axis] + 0.5) * zoom);
-        int y = std::round(y_dim - image.spacing(y_axis) * (focus[y_axis] + 0.5) * zoom);
-        x = std::max (std::min (x, x_dim-1), 0);
-        y = std::max (std::min (y, y_dim-1), 0);
-        view.draw_crosshairs (x, y, CROSSHAIR_COLOUR);
-      }
-
-      //view.draw_colourbar ();
-
-      // encode buffer and print out:
-      out += encoder.write();
-    }
+    out += display_image (image, cmap, 2*COLOURBAR_WIDTH) + CarriageReturn + ClearLine;
 
     if (arrow_mode == ARROW_COLOUR)
       out += TextForegroundYellow;
-    out += str(cmap.max(), 4) + TextReset + move_cursor(Down,1) + CarriageReturn;
+    out += str(cmap.min(), 4) + TextReset + move_cursor(Down,1) + CarriageReturn;
   }
 
 
   out += show_focus(image);
 
   if (orthoview) {
-    out += "| active: ";
+    out += " | active: ";
     switch (slice_axis) {
-      case (0): out += std::string (TextUnderscore) + "s" + TextReset + "agittal "; break;
-      case (1): out += std::string (TextUnderscore) + "c" + TextReset + "oronal "; break;
-      case (2): out += std::string (TextUnderscore) + "a" + TextReset + "xial "; break;
+      case (0): out += std::string (TextUnderscore) + "s" + TextReset + "agittal"; break;
+      case (1): out += std::string (TextUnderscore) + "c" + TextReset + "oronal"; break;
+      case (2): out += std::string (TextUnderscore) + "a" + TextReset + "xial"; break;
       default: break;
     };
   }
 
   if (interactive)
-    out += std::string("| help: ") + TextUnderscore + "?" + TextReset;
+    out += std::string(" | help: ") + TextUnderscore + "?" + TextReset;
   if (do_plot)
     out += plot (image, plot_axis);
 
@@ -589,6 +609,9 @@ void show_help ()
 
 
 
+
+
+
 bool query_int (const std::string& prompt,
     int& value,
     int vmin = std::numeric_limits<int>::min(),
@@ -621,6 +644,13 @@ bool query_int (const std::string& prompt,
   }
   return false;
 }
+
+
+
+
+
+
+
 
 
 void run ()
@@ -696,6 +726,7 @@ void run ()
   // start loop
   enter_raw_mode();
   Sixel::init();
+  std::cout << ClearScreen;
 
   try {
 
@@ -707,7 +738,7 @@ void run ()
 
       while ((event = read_user_input(x, y)) == 0) {
         if (need_update) {
-          std::cout << ClearScreen << CursorHome << display (image, colourmaps);
+          std::cout << CursorHome << display (image, colourmaps);
           std::cout.flush();
           need_update = false;
         }
@@ -763,12 +794,12 @@ void run ()
         case 'a': slice_axis = 2; break;
         case 's': slice_axis = 0; break;
         case 'c': slice_axis = 1; break;
-        case 'o': orthoview = !orthoview; break;
-        case 'm': show_image = !show_image; break;
+        case 'o': orthoview = !orthoview; std::cout << ClearScreen; break;
+        case 'm': show_image = !show_image; std::cout << ClearScreen; break;
         case 'r': focus[x_axis] = std::round (image.size(x_axis)/2); focus[x_axis] = std::round (image.size(x_axis)/2);
                   focus[slice_axis] = std::round (image.size(slice_axis)/2); break;
         case '+': zoom *= 1.1; break;
-        case '-': zoom /= 1.1; break;
+        case '-': zoom /= 1.1; std::cout << ClearScreen; break;
         case ' ':
         case 'x': arrow_mode = x_arrow_mode = (x_arrow_mode == ARROW_SLICEVOL) ? ARROW_CROSSHAIR : ARROW_SLICEVOL; break;
         case 'b': arrow_mode = (arrow_mode == ARROW_COLOUR) ? x_arrow_mode : ARROW_COLOUR; break;
@@ -784,6 +815,7 @@ void run ()
                   } break;
         case 'p': do_plot = query_int ("select plot axis [0 ... "+str(image.ndim()-1)+"]: ",
                       plot_axis, 0, image.ndim()-1);
+                  if (!do_plot) std::cout << ClearScreen;
                   break;
         case '?': show_help(); break;
 
