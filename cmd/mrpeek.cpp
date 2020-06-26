@@ -641,14 +641,14 @@ void show_help ()
   std::cout << out;
   std::cout.flush();
 
-  int event, x, y;
-  while ((event = read_user_input(x, y)) == 0)
-    std::this_thread::sleep_for (std::chrono::milliseconds(10));
+  struct Callback : public EventLoop::CallBack
+  {
+    bool operator() (int event, const std::vector<int>& param) override { return event == 0; }
+  } callback;
+  EventLoop (callback).run();
 
   std::cout << ClearScreen;
 }
-
-
 
 
 
@@ -663,32 +663,194 @@ bool query_int (const std::string& prompt,
   std::cout << CarriageReturn << ClearLine << prompt;
   std::cout.flush();
 
-  int event, x, y;
-  std::string response;
-  while ((event = read_user_input(x, y)) != '\r') {
-    std::this_thread::sleep_for (std::chrono::milliseconds(10));
-    if (event >= '0' && event <= '9') {
-      response += char(event);
-      std::cout << char(event);
-      std::cout.flush();
-    }
-    else if (event == Backspace) {
-      if (response.size()) {
-        response.pop_back();
-        std::cout << move_cursor (Left, 1) << ClearLineFromCursorRight;
+  struct Callback : public EventLoop::CallBack
+  {
+    Callback (int vmin, int vmax) : vmin (vmin), vmax (vmax) { }
+    bool operator() (int event, const std::vector<int>& param) override
+    {
+      if (event == CarriageReturn)
+        return false;
+      if (event >= '0' && event <= '9') {
+        response += char(event);
+        std::cout << char(event);
         std::cout.flush();
       }
+      else if (event == Backspace) {
+        if (response.size()) {
+          response.pop_back();
+          std::cout << move_cursor (Left, 1) << ClearLineFromCursorRight;
+          std::cout.flush();
+        }
+      }
+      return true;
     }
-  }
 
-  if (response.size()) {
-    value = to<int> (response);
-    return (value >= vmin && value <= vmax);
-  }
-  return false;
+    bool get_value (int& value) {
+      if (response.size()) {
+        value = to<int> (response);
+        return (value >= vmin && value <= vmax);
+      }
+      return false;
+    }
+
+    int vmin, vmax;
+    std::string response;
+  } callback (vmin, vmax);
+  EventLoop (callback).run();
+
+  return callback.get_value (value);
 }
 
 
+
+
+
+
+class CallBack : public EventLoop::CallBack
+{
+  public:
+    CallBack (ImageType& image) : image (image), xp (0), yp (0), need_update (true) { }
+
+    bool operator() (int event, const std::vector<int>& param) override
+    {
+
+      if (!event) {
+        if (need_update) {
+          need_update = false;
+          std::cout << CursorHome << display (image, colourmaps);
+          //std::cout << "UPDATE ";
+          std::cout.flush();
+        }
+        return true;;
+      }
+
+      need_update = true;
+
+      if (event == 'q')
+        return false;
+
+      if (event == MouseEvent) {
+        auto button = mouse_button (param[0]);
+        bool mod = mouse_modifier (param[0]);
+        int x = param[1];
+        int y = param[2];
+
+        if (x-xp > 127) xp += 256;
+        if (xp-x > 127) xp -= 256;
+        if (y-yp > 127) yp += 256;
+        if (yp-y > 127) yp -= 256;
+
+        switch (button) {
+          case MouseWheelUp:
+            focus[slice_axis] += mod ? 10 : 1;
+            break;
+          case MouseWheelDown:
+            focus[slice_axis] -= mod ? 10 : 1;
+            break;
+          case MouseMoveLeft:
+            focus[x_axis] += xp-x;
+            focus[y_axis] += yp-y;
+            break;
+          case MouseMoveRight:
+            colourmaps[1].update_scaling (x-xp, y-yp);
+            break;
+          default: break;
+        }
+
+        xp = x;
+        yp = y;
+        return true;
+      }
+
+      switch (event) {
+        case Up:
+          switch(arrow_mode) {
+            case ARROW_SLICEVOL:  ++focus[slice_axis];   break;
+            case ARROW_CROSSHAIR: ++focus[y_axis]; break;
+            case ARROW_COLOUR:    colourmaps[1].update_scaling (0, -1); break;
+            default: break;
+          } break;
+        case Down:
+          switch(arrow_mode) {
+            case ARROW_SLICEVOL:  --focus[slice_axis];   break;
+            case ARROW_CROSSHAIR: --focus[y_axis]; break;
+            case ARROW_COLOUR:    colourmaps[1].update_scaling (0, 1); break;
+            default: break;
+          } break;
+        case Left:
+          switch(arrow_mode) {
+            case ARROW_SLICEVOL:  if (vol_axis >= 0) {
+                                    --image.index(vol_axis);
+                                    if (image.index(vol_axis) < 0) image.index(vol_axis) = image.size(vol_axis) - 1; }
+                                  break;
+            case ARROW_CROSSHAIR: ++focus[x_axis]; break;
+            case ARROW_COLOUR:    colourmaps[1].update_scaling (-1, 0); break;
+            default: break;
+          } break;
+        case Right:
+          switch(arrow_mode) {
+            case ARROW_SLICEVOL:  if (vol_axis >= 0) {
+                                    ++image.index(vol_axis);
+                                    if (image.index(vol_axis) >= image.size(vol_axis)) image.index(vol_axis) = 0; }
+                                  break;
+            case ARROW_CROSSHAIR: --focus[x_axis]; break;
+            case ARROW_COLOUR:    colourmaps[1].update_scaling (1, 0); break;
+            default: break;
+          } break;
+        case 'f': crosshair = !crosshair; break;
+        case 'v': if (image.ndim() > 3) {vol_axis = (vol_axis - 2) % (image.ndim() - 3) + 3; } break;
+        case 'a': slice_axis = 2; if (!orthoview) std::cout << ClearScreen; break;
+        case 's': slice_axis = 0; if (!orthoview) std::cout << ClearScreen; break;
+        case 'c': slice_axis = 1; if (!orthoview) std::cout << ClearScreen; break;
+        case 'o': orthoview = !orthoview; std::cout << ClearScreen; break;
+        case 'm': show_image = !show_image; std::cout << ClearScreen; break;
+        case 'r': focus[x_axis] = std::round (image.size(x_axis)/2); focus[x_axis] = std::round (image.size(x_axis)/2);
+                  focus[slice_axis] = std::round (image.size(slice_axis)/2); break;
+        case 'i': interpolate = !interpolate; break;
+        case '+': zoom *= 1.1; std::cout << ClearScreen; break;
+        case '-': zoom /= 1.1; std::cout << ClearScreen; break;
+        case ' ':
+        case 'x': arrow_mode = x_arrow_mode = (x_arrow_mode == ARROW_SLICEVOL) ? ARROW_CROSSHAIR : ARROW_SLICEVOL; break;
+        case 'b': arrow_mode = (arrow_mode == ARROW_COLOUR) ? x_arrow_mode : ARROW_COLOUR; break;
+        case Escape: colourmaps[1].invalidate_scaling(); break;
+        case 'l': {
+                    int n;
+                    if (query_int ("select number of levels: ", n, 1, 254)) {
+                      levels = n;
+                      colourmaps[1].set_levels (levels);
+                    }
+                  } break;
+        case 'p': do_plot = query_int ("select plot axis [0 ... "+str(image.ndim()-1)+"]: ",
+                      plot_axis, 0, image.ndim()-1);
+                  if (!do_plot) std::cout << ClearScreen;
+                  break;
+        case '?': show_help(); break;
+
+        default:
+                  if (event >= '1' && event <= '9') {
+                    int idx = event - '1';
+                    if (idx < colourmap_choices_std.size()) {
+                      colourmaps[1].ID = idx;
+                      break;
+                    }
+                  }
+                  std::cerr << std::hex << event << " ( ";
+                  for (const auto x : param)
+                    std::cerr << x << " ";
+                  std::cerr << ") ";
+                  need_update = false; break;
+      }
+
+
+      return true;
+    }
+
+
+  private:
+    ImageType& image;
+    int xp, yp;
+    bool need_update;
+};
 
 
 
@@ -766,123 +928,19 @@ void run ()
   }
 
 
-  // start loop
-  enter_raw_mode();
-  Sixel::init();
-  std::cout << ClearScreen;
-
   try {
+    // start loop
+    enter_raw_mode();
+    Sixel::init();
+    std::cout << ClearScreen;
 
-    int event = 0;
-    int x, y, xp = 0, yp = 0;
-    bool need_update = true;
-
-    do {
-
-      while ((event = read_user_input(x, y)) == 0) {
-        if (need_update) {
-          std::cout << CursorHome << display (image, colourmaps);
-          std::cout.flush();
-          need_update = false;
-        }
-        std::this_thread::sleep_for (std::chrono::milliseconds(10));
-      }
-
-      if (x-xp > 127) xp += 256;
-      if (xp-x > 127) xp -= 256;
-      if (y-yp > 127) yp += 256;
-      if (yp-y > 127) yp -= 256;
-
-      need_update = true;
-
-      switch (event) {
-        case Up:
-          switch(arrow_mode) {
-            case ARROW_SLICEVOL:  ++focus[slice_axis];   break;
-            case ARROW_CROSSHAIR: ++focus[y_axis]; break;
-            case ARROW_COLOUR:    colourmaps[1].update_scaling (0, -1); break;
-            default: break;
-          } break;
-        case MouseWheelUp: ++focus[slice_axis]; break;
-        case Down:
-          switch(arrow_mode) {
-            case ARROW_SLICEVOL:  --focus[slice_axis];   break;
-            case ARROW_CROSSHAIR: --focus[y_axis]; break;
-            case ARROW_COLOUR:    colourmaps[1].update_scaling (0, 1); break;
-            default: break;
-          } break;
-        case MouseWheelDown: --focus[slice_axis]; break;
-        case Left:
-          switch(arrow_mode) {
-            case ARROW_SLICEVOL:  if (vol_axis >= 0) {
-                                    --image.index(vol_axis);
-                                    if (image.index(vol_axis) < 0) image.index(vol_axis) = image.size(vol_axis) - 1; }
-                                  break;
-            case ARROW_CROSSHAIR: ++focus[x_axis]; break;
-            case ARROW_COLOUR:    colourmaps[1].update_scaling (-1, 0); break;
-            default: break;
-          } break;
-        case Right:
-          switch(arrow_mode) {
-            case ARROW_SLICEVOL:  if (vol_axis >= 0) {
-                                    ++image.index(vol_axis);
-                                    if (image.index(vol_axis) >= image.size(vol_axis)) image.index(vol_axis) = 0; }
-                                  break;
-            case ARROW_CROSSHAIR: --focus[x_axis]; break;
-            case ARROW_COLOUR:    colourmaps[1].update_scaling (1, 0); break;
-            default: break;
-          } break;
-        case 'f': crosshair = !crosshair; break;
-        case 'v': if (image.ndim() > 3) {vol_axis = (vol_axis - 2) % (image.ndim() - 3) + 3; } break;
-        case 'a': slice_axis = 2; if (!orthoview) std::cout << ClearScreen; break;
-        case 's': slice_axis = 0; if (!orthoview) std::cout << ClearScreen; break;
-        case 'c': slice_axis = 1; if (!orthoview) std::cout << ClearScreen; break;
-        case 'o': orthoview = !orthoview; std::cout << ClearScreen; break;
-        case 'm': show_image = !show_image; std::cout << ClearScreen; break;
-        case 'r': focus[x_axis] = std::round (image.size(x_axis)/2); focus[x_axis] = std::round (image.size(x_axis)/2);
-                  focus[slice_axis] = std::round (image.size(slice_axis)/2); break;
-        case 'i': interpolate = !interpolate; break;
-        case '+': zoom *= 1.1; std::cout << ClearScreen; break;
-        case '-': zoom /= 1.1; std::cout << ClearScreen; break;
-        case ' ':
-        case 'x': arrow_mode = x_arrow_mode = (x_arrow_mode == ARROW_SLICEVOL) ? ARROW_CROSSHAIR : ARROW_SLICEVOL; break;
-        case 'b': arrow_mode = (arrow_mode == ARROW_COLOUR) ? x_arrow_mode : ARROW_COLOUR; break;
-        case MouseMoveLeft: focus[x_axis] += xp-x; focus[y_axis] += yp-y; break;
-        case Escape: colourmaps[1].invalidate_scaling(); break;
-        case MouseMoveRight: colourmaps[1].update_scaling (x-xp, y-yp); break;
-        case 'l': {
-                    int n;
-                    if (query_int ("select number of levels: ", n, 1, 254)) {
-                      levels = n;
-                      colourmaps[1].set_levels (levels);
-                    }
-                  } break;
-        case 'p': do_plot = query_int ("select plot axis [0 ... "+str(image.ndim()-1)+"]: ",
-                      plot_axis, 0, image.ndim()-1);
-                  if (!do_plot) std::cout << ClearScreen;
-                  break;
-        case '?': show_help(); break;
-
-        default:
-                  if (event >= '1' && event <= '9') {
-                    int idx = event - '1';
-                    if (idx < colourmap_choices_std.size()) {
-                      colourmaps[1].ID = idx;
-                      break;
-                    }
-                  }
-                  need_update = false; break;
-      }
-      xp = x;
-      yp = y;
-
-    } while (!(event == 'q' || event == 'Q' || event == Ctrl('c') || event == Ctrl('q')));
+    CallBack callback (image);
+    EventLoop event_loop (callback);
+    event_loop.run();
     exit_raw_mode();
-
   }
-  catch (Exception&) {
+  catch (...) {
     exit_raw_mode();
     throw;
   }
-
 }

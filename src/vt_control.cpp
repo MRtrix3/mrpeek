@@ -9,6 +9,14 @@
 #include "mrtrix.h"
 
 
+// implementation mostly gleaned from various sites, particularly:
+// https://www.man7.org/linux/man-pages/man4/console_codes.4.html
+
+// implementation currently ignores a lot of the possible control sequences#
+// it is hoped that these would only be produced as output to the terminal, rather
+// than received as input to the application...
+
+
 namespace MR {
   namespace VT {
 
@@ -50,83 +58,6 @@ namespace MR {
     }
 
 
-    int read_user_input (int& x, int& y)
-    {
-      int nread;
-      char c = '\0';
-
-      while ((nread = read (STDIN_FILENO, &c, 1)) != 1) {
-        if (nread == -1 && errno != EAGAIN)
-          throw Exception ("error reading user input");
-        return 0;
-      }
-
-      if (c == Escape) {
-        char seq[5];
-        if (read (STDIN_FILENO, &seq[0], 1) != 1) return Escape;
-        if (read (STDIN_FILENO, &seq[1], 1) != 1) return Escape;
-        if (seq[0] == '[') {
-          if (seq[1] >= '0' && seq[1] <= '9') {
-            if (read (STDIN_FILENO, &seq[2], 1) != 1) return Escape;
-            if (seq[2] == '~') {
-              switch (seq[1]) {
-                case '1': return Home;
-                case '3': return Delete;
-                case '4': return End;
-                case '5': return PageUp;
-                case '6': return PageDown;
-                case '7': return Home;
-                case '8': return End;
-                default: return Escape;
-              }
-            }
-          } else {
-
-            switch (seq[1]) {
-              case 'A': return Up;
-              case 'B': return Down;
-              case 'C': return Right;
-              case 'D': return Left;
-              case 'Z': return ShiftTab;
-              case 'H': return Home;
-              case 'F': return End;
-              case 'M': // mouse:
-                        if (read (STDIN_FILENO, &seq[2], 1) != 1) return Escape;
-                        if (read (STDIN_FILENO, &seq[3], 1) != 1) return Escape;
-                        if (read (STDIN_FILENO, &seq[4], 1) != 1) return Escape;
-                        x = seq[3];
-                        y = seq[4];
-                        switch (seq[2]) {
-                          case ' ': return MouseLeft;
-                          case '!': return MouseMiddle;
-                          case '"': return MouseRight;
-                          case '#': return MouseRelease;
-                          case '`': return MouseWheelUp;
-                          case 'a': return MouseWheelDown;
-                          case '@': return MouseMoveLeft;
-                          case 'A': return MouseMoveMiddle;
-                          case 'B': return MouseMoveRight;
-                          default: return Escape;
-                        }
-
-
-
-              default: return Escape;
-            }
-          }
-        }
-        else if (seq[0] == 'O') {
-          switch (seq[1]) {
-            case 'H': return Home;
-            case 'F': return End;
-            default: return Escape;
-          }
-        }
-        return Escape;
-      }
-
-      return c;
-    }
 
     void get_cursor_position (int& row, int& col)
     {
@@ -172,6 +103,123 @@ namespace MR {
       }
 
     }
+
+
+
+
+
+
+    void EventLoop::run ()
+    {
+      while (true) {
+        param.clear();
+        uint8_t c = next();
+
+        if (c == Escape) esc();
+        else if (c == 0x9B) CSI();
+        else if (!callback (c, param))
+          return;
+      }
+    }
+
+
+
+
+    void EventLoop::esc ()
+    {
+      uint8_t c = next();
+      if (c == '[')
+        CSI();
+      else if (c == ']')
+        OSC();
+      else
+        throw Exception ("unexpected Esc control sequence");
+    }
+
+
+
+    void EventLoop::CSI ()
+    {
+      uint8_t c = next();
+      if (c == '[') {
+        next();
+        return;
+      }
+      if (c == 'M') {
+        mouse ();
+        return;
+      }
+      // ignore initial question mark if encountered. Not sure whether this is
+      // the right thing to do...
+      if (c == '?')
+        c = next();
+
+      std::string buf;
+      for (int n = 0; n < 16; ++n) {
+        if (c >= '0' && c <= '9')
+          buf.push_back (c);
+        else if (c == ';') {
+          param.push_back (buf.size() ? to<int>(buf) : 0);
+          buf.clear();
+        }
+        else if (c == Escape) {
+          param.clear();
+          esc();
+        }
+        else if ((c >= 0x07 && c <= 0x0F) || c == 0x7F) { /* Control characters - ignore */ }
+        else if (c == 0x9B) { // CSI
+          param.clear();
+          CSI();
+        }
+        else if (c == 0x18 || c == 0x1A) // abort
+          return;
+        else {
+          if (buf.size())
+            param.push_back (to<int>(buf));
+          callback (CSImask | c, param);
+          return;
+        }
+        c = next();
+      }
+      throw Exception ("unexpected input!");
+    }
+
+
+    void EventLoop::OSC ()
+    {
+      throw Exception ("unexpected OSC sequence");
+    }
+
+
+
+
+    void EventLoop::mouse ()
+    {
+      param.push_back (next()-0x20);
+      param.push_back (next()-0x20);
+      param.push_back (next()-0x20);
+
+      callback (MouseEvent, param);
+    }
+
+
+
+    void EventLoop::fill_buffer ()
+    {
+      current_char = 0;
+      bool idle_event_sent = false;
+      while ((nread = read (STDIN_FILENO, buf, VT_READ_BUFSIZE)) <= 0) {
+        if (nread == -1 && errno != EAGAIN)
+          throw Exception ("error reading user input");
+        if (!idle_event_sent) {
+          idle_event_sent = true;
+          callback (0, param);
+        }
+        std::this_thread::sleep_for (std::chrono::milliseconds(10));
+      }
+    }
+
+
 
 
   }

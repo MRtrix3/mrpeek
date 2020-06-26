@@ -3,6 +3,9 @@
 
 #include <sstream>
 #include "mrtrix.h"
+#include "debug.h"
+
+#define VT_READ_BUFSIZE 256
 
 namespace MR {
   namespace VT {
@@ -13,7 +16,6 @@ namespace MR {
     constexpr const char* CursorHome = "\x1b[H";
     constexpr const char* ClearLine = "\x1b[2K";
     constexpr const char* ClearLineFromCursorRight = "\x1b[0K";
-    constexpr const char* CarriageReturn = "\r";
 
     constexpr const char* CursorOff = "\x1b[?25l";
     constexpr const char* CursorOn = "\x1b[?25h";
@@ -30,29 +32,39 @@ namespace MR {
 
     constexpr char Escape = '\x1b';
     constexpr char CtrlC = '\x03';
+    constexpr char CarriageReturn = '\r';
     constexpr char Backspace = '\x7F';
-    constexpr int Up = 0x0101;
-    constexpr int Down = 0x0102;
-    constexpr int Right = 0x0103;
-    constexpr int Left = 0x0104;
-    constexpr int PageUp = 0x0105;
-    constexpr int PageDown = 0x0106;
-    constexpr int Tab = 0x0009;
-    constexpr int ShiftTab = 0x0109;
-    constexpr int Home = 0x0110;
-    constexpr int End = 0x0111;
-    constexpr int Delete = 0x0112;
-    constexpr int MouseLeft = 0x0201;
-    constexpr int MouseMiddle = 0x0202;
-    constexpr int MouseRight = 0x0203;
-    constexpr int MouseWheelUp = 0x0204;
-    constexpr int MouseWheelDown = 0x0205;
-    constexpr int MouseRelease = 0x0206;
-    constexpr int MouseMoveLeft = 0x0211;
-    constexpr int MouseMoveMiddle = 0x0212;
-    constexpr int MouseMoveRight = 0x0213;
+    constexpr int Up = 0x0141;
+    constexpr int Down = 0x0142;
+    constexpr int Right = 0x0143;
+    constexpr int Left = 0x0144;
+    constexpr int CSImask = 0x0100;
+    constexpr int MouseEvent = 0x1000;
+
+    enum MouseButton {
+      MouseLeft, MouseMiddle, MouseRight,
+      MouseRelease, MouseWheelUp, MouseWheelDown, MouseMoveLeft,
+      MouseMoveMiddle, MouseMoveRight
+    };
 
     constexpr inline int Ctrl (int c) { return c & 0x1F; }
+    constexpr inline bool mouse_modifier (int c) { return c & 0x1C; }
+    inline MouseButton mouse_button (int c)
+    {
+      switch (c & 0x63) {
+        case 0x00: return MouseLeft;
+        case 0x01: return MouseMiddle;
+        case 0x02: return MouseRight;
+        case 0x03: return MouseRelease;
+        case 0x20: return MouseMoveLeft;
+        case 0x21: return MouseMoveMiddle;
+        case 0x22: return MouseMoveRight;
+        case 0x40: return MouseWheelUp;
+        case 0x41: return MouseWheelDown;
+        default: throw Exception ("unexpected mouse button");
+      }
+    }
+
 
     inline std::string position_cursor_at (int row, int column)
     { return MR::printf ("\x1b[%d;%dH", row, column); }
@@ -75,7 +87,6 @@ namespace MR {
 
     void enter_raw_mode();
     void exit_raw_mode();
-    int read_user_input (int& x, int& y);
 
     void get_cursor_position (int& row, int& col);
     inline void get_terminal_size (int& rows, int& cols)
@@ -83,6 +94,42 @@ namespace MR {
       std::cout << position_cursor_at (999,999);
       get_cursor_position (rows,cols);
     }
+
+
+
+    class EventLoop
+    {
+      public:
+        class CallBack {
+          public:
+            virtual bool operator() (int event, const std::vector<int>& param) = 0;
+        };
+
+
+        EventLoop (CallBack& callback) :
+          callback (callback), current_char (0), nread (0) { }
+
+        void run ();
+      private:
+        CallBack& callback;
+        uint8_t buf[VT_READ_BUFSIZE];
+        int current_char, nread;
+        std::vector<int> param;
+
+        uint8_t next() {
+          ++current_char;
+          if (current_char >= nread)
+            fill_buffer();
+          return buf[current_char];
+        }
+
+        void fill_buffer ();
+        void esc ();
+        void CSI ();
+        void OSC ();
+        void mouse ();
+    };
+
 
   }
 };
