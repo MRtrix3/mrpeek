@@ -122,7 +122,9 @@ void usage ()
 
 using value_type = float;
 using ImageType = Image<value_type>;
-using Reslicer = Adapter::Reslice<Interp::Linear, ImageType>;
+using Reslicer = Adapter::Reslice<Interp::Nearest, ImageType>;
+using LinearReslicer = Adapter::Reslice<Interp::Linear, ImageType>;
+using CubicReslicer = Adapter::Reslice<Interp::Cubic, ImageType>;
 
 
 
@@ -133,7 +135,7 @@ int levels = 32;
 int x_axis, y_axis, slice_axis = 2, plot_axis = slice_axis, vol_axis = -1;
 value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX, zoom = 1.0;
 bool crosshair = true, colorbar = true, orthoview = true, interactive = true;
-bool do_plot = false, show_image = true;
+bool do_plot = false, show_image = true, interpolate = false;
 vector<int> focus (3, 0);  // relative to original image grid
 ArrowMode x_arrow_mode = ARROW_SLICEVOL, arrow_mode = x_arrow_mode;
 Sixel::ColourMaps colourmaps;
@@ -300,8 +302,8 @@ void draw_crosshairs (const Sixel::ViewPort& view, int x0, int y0, int index) {
 
 
 
-
-void display_slice (Reslicer& regrid, const Sixel::ViewPort& view, const Sixel::CMap& cmap)
+template <class InterpType>
+void render_slice (InterpType& regrid, const Sixel::ViewPort& view, const Sixel::CMap& cmap)
 {
   const int x_dim = regrid.size(x_axis);
   const int y_dim = regrid.size(y_axis);
@@ -317,6 +319,16 @@ void display_slice (Reslicer& regrid, const Sixel::ViewPort& view, const Sixel::
 }
 
 
+
+void display_slice (ImageType& image, Reslicer& regrid, const Sixel::ViewPort& view, const Sixel::CMap& cmap)
+{
+  if (interpolate) {
+    LinearReslicer reslicer (image, regrid);
+    render_slice (reslicer, view, cmap);
+  }
+  else
+    render_slice (regrid, view, cmap);
+}
 
 
 
@@ -476,7 +488,7 @@ std::string display_image (ImageType& image, const Sixel::CMap& cmap, int colour
       // recentring
       const int dy = (panel_y_dim - y_dim) / 2;
       auto view = encoder.viewport (x_pos, 0, regrid[slice_axis].size (x_axis), panel_y_dim);
-      display_slice (regrid[slice_axis], view.viewport (0, dy), cmap);
+      display_slice (image, regrid[slice_axis], view.viewport (0, dy), cmap);
 
       if (crosshair) {
         int x = std::round(x_dim - image.spacing(x_axis) * (focus[x_axis] + 0.5) * zoom);
@@ -506,7 +518,7 @@ std::string display_image (ImageType& image, const Sixel::CMap& cmap, int colour
     draw_colourbar (encoder.viewport (0, 0, COLOURBAR_WIDTH), cmap);
 
     auto view = encoder.viewport(colourbar_offset, 0);
-    display_slice (regrid, view, cmap);
+    display_slice (image, regrid, view, cmap);
 
     if (crosshair) {
       int x = std::round(x_dim - image.spacing(x_axis) * (focus[x_axis] + 0.5) * zoom);
@@ -614,6 +626,7 @@ void show_help ()
     + key ("b", "toggle arrow key brightness control")
     + key ("f", "show / hide crosshairs")
     + key ("r", "reset focus")
+    + key ("i", "toggle between nearest (default) and linear interpolation")
     + key ("left mouse & drag", "move focus")
     + key ("right mouse & drag", "adjust brightness / contrast")
     + key ("Esc", "reset brightness / contrast")
@@ -828,6 +841,7 @@ void run ()
         case 'm': show_image = !show_image; std::cout << ClearScreen; break;
         case 'r': focus[x_axis] = std::round (image.size(x_axis)/2); focus[x_axis] = std::round (image.size(x_axis)/2);
                   focus[slice_axis] = std::round (image.size(slice_axis)/2); break;
+        case 'i': interpolate = !interpolate; break;
         case '+': zoom *= 1.1; std::cout << ClearScreen; break;
         case '-': zoom /= 1.1; std::cout << ClearScreen; break;
         case ' ':
