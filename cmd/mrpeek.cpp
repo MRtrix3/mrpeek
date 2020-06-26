@@ -122,7 +122,7 @@ void usage ()
 
 using value_type = float;
 using ImageType = Image<value_type>;
-using Reslicer = Adapter::Reslice<Interp::Nearest, ImageType>;
+using Reslicer = Adapter::Reslice<Interp::Linear, ImageType>;
 
 
 
@@ -267,6 +267,36 @@ void autoscale (ImageType& image, Sixel::CMap& cmap)
   cmap.set_scaling_min_max (vmin, vmax);
   INFO("reset intensity range to " + str(vmin) + " - " +str(vmax));
 }
+
+
+
+
+
+
+// add crosshairs at the specified position,
+// using colour index specified:
+void draw_frame (const Sixel::ViewPort& view, int index)
+{
+  for (int x = 0; x < view.xdim(); ++x)
+    view(x,0) = view(x,view.ydim()-1) = index;
+  for (int y = 0; y < view.ydim(); ++y)
+    view(0,y) = view(view.xdim()-1,y) = index;
+}
+
+
+
+
+
+
+// add crosshairs at the specified position,
+// using colour index specified:
+void draw_crosshairs (const Sixel::ViewPort& view, int x0, int y0, int index) {
+  for (int x = 0; x < view.xdim(); ++x)
+    view(x,y0) = index;
+  for (int y = 0; y < view.ydim(); ++y)
+    view(x0,y) = index;
+}
+
 
 
 
@@ -453,11 +483,11 @@ std::string display_image (ImageType& image, const Sixel::CMap& cmap, int colour
         int y = std::round(y_dim - image.spacing(y_axis) * (focus[y_axis] + 0.5) * zoom);
         x = std::max (std::min (x, x_dim-1), 0);
         y = std::max (std::min (y, y_dim-1), 0);
-        view.draw_crosshairs(x, y+dy, CROSSHAIR_COLOUR);
+        draw_crosshairs (view, x, y+dy, CROSSHAIR_COLOUR);
       }
 
       if (interactive && slice_axis == backup_slice_axis)
-        view.frame (HIGHLIGHT_COLOUR);
+        draw_frame (view, HIGHLIGHT_COLOUR);
 
       x_pos += regrid[slice_axis].size (x_axis);
     }
@@ -483,7 +513,7 @@ std::string display_image (ImageType& image, const Sixel::CMap& cmap, int colour
       int y = std::round(y_dim - image.spacing(y_axis) * (focus[y_axis] + 0.5) * zoom);
       x = std::max (std::min (x, x_dim-1), 0);
       y = std::max (std::min (y, y_dim-1), 0);
-      view.draw_crosshairs (x, y, CROSSHAIR_COLOUR);
+      draw_crosshairs (view, x, y, CROSSHAIR_COLOUR);
     }
 
     //view.draw_colourbar ();
@@ -791,14 +821,14 @@ void run ()
           } break;
         case 'f': crosshair = !crosshair; break;
         case 'v': if (image.ndim() > 3) {vol_axis = (vol_axis - 2) % (image.ndim() - 3) + 3; } break;
-        case 'a': slice_axis = 2; break;
-        case 's': slice_axis = 0; break;
-        case 'c': slice_axis = 1; break;
+        case 'a': slice_axis = 2; if (!orthoview) std::cout << ClearScreen; break;
+        case 's': slice_axis = 0; if (!orthoview) std::cout << ClearScreen; break;
+        case 'c': slice_axis = 1; if (!orthoview) std::cout << ClearScreen; break;
         case 'o': orthoview = !orthoview; std::cout << ClearScreen; break;
         case 'm': show_image = !show_image; std::cout << ClearScreen; break;
         case 'r': focus[x_axis] = std::round (image.size(x_axis)/2); focus[x_axis] = std::round (image.size(x_axis)/2);
                   focus[slice_axis] = std::round (image.size(slice_axis)/2); break;
-        case '+': zoom *= 1.1; break;
+        case '+': zoom *= 1.1; std::cout << ClearScreen; break;
         case '-': zoom /= 1.1; std::cout << ClearScreen; break;
         case ' ':
         case 'x': arrow_mode = x_arrow_mode = (x_arrow_mode == ARROW_SLICEVOL) ? ARROW_CROSSHAIR : ARROW_SLICEVOL; break;

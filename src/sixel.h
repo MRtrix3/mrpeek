@@ -157,24 +157,6 @@ namespace MR {
           return data[x+x_stride*y];
         }
 
-        // add crosshairs at the specified position,
-        // using colour index specified:
-        void frame (int index) const {
-          for (int x = 0; x < x_dim; ++x)
-            (*this)(x,0) = (*this)(x,y_dim-1) = index;
-          for (int y = 0; y < y_dim; ++y)
-            (*this)(0,y) = (*this)(x_dim-1,y) = index;
-        }
-
-        // add crosshairs at the specified position,
-        // using colour index specified:
-        void draw_crosshairs (int x0, int y0, int index) const {
-          for (int x = 0; x < x_dim; ++x)
-            (*this)(x,y0) = index;
-          for (int y = 0; y < y_dim; ++y)
-            (*this)(x0,y) = index;
-        }
-
         int xdim () const { return x_dim; }
         int ydim () const { return y_dim; }
 
