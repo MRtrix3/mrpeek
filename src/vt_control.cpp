@@ -2,6 +2,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <thread>
+#include <poll.h>
 
 #include "exception.h"
 #include "vt_control.h"
@@ -206,17 +207,25 @@ namespace MR {
 
     void EventLoop::fill_buffer ()
     {
+      struct pollfd pfd;
+      pfd.fd = STDIN_FILENO;
+      pfd.events = POLLIN;
+
       current_char = 0;
-      bool idle_event_sent = false;
-      while ((nread = read (STDIN_FILENO, buf, VT_READ_BUFSIZE)) <= 0) {
+
+      // if nothing on input stream, invoke idle event:
+      poll (&pfd, 1, 0);
+      if (!pfd.revents)
+        callback (0, param);
+
+      do {
+        poll (&pfd, 1, -1);
+        if (pfd.revents != POLLIN)
+          throw Exception ("unexpected error on input stream");
+        nread = read (STDIN_FILENO, buf, VT_READ_BUFSIZE);
         if (nread == -1 && errno != EAGAIN)
           throw Exception ("error reading user input");
-        if (!idle_event_sent) {
-          idle_event_sent = true;
-          callback (0, param);
-        }
-        std::this_thread::sleep_for (std::chrono::milliseconds(10));
-      }
+      } while (nread == 0);
     }
 
 
