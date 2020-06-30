@@ -834,10 +834,11 @@ class CallBack : public EventLoop::CallBack
                       break;
                     }
                   }
+                  /* for debugging purposes:
                   std::cerr << std::hex << event << " ( ";
                   for (const auto x : param)
                     std::cerr << x << " ";
-                  std::cerr << ") ";
+                  std::cerr << ") "; */
                   need_update = false; break;
       }
 

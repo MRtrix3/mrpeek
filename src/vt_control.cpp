@@ -128,13 +128,23 @@ namespace MR {
 
     void EventLoop::esc ()
     {
+      if (current_char+1 >= nread) {
+        callback (Escape, param);
+        return;
+      }
       uint8_t c = next();
       if (c == '[')
         CSI();
       else if (c == ']')
         OSC();
-      else
-        throw Exception ("unexpected Esc control sequence");
+      else if (c == 'O') {
+        c = next();
+        callback (FunctionKey + c - 'P', param);
+      }
+      else if (c == Escape) {
+        callback (Escape, param);
+        esc();
+      }
     }
 
 

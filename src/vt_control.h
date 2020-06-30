@@ -40,6 +40,7 @@ namespace MR {
     constexpr int Left = 0x0144;
     constexpr int CSImask = 0x0100;
     constexpr int MouseEvent = 0x1000;
+    constexpr int FunctionKey = 0x2000;
 
     enum MouseButton {
       MouseLeft, MouseMiddle, MouseRight,
