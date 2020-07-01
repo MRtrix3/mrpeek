@@ -1,5 +1,3 @@
-#include <termios.h>
-
 #include "command.h"
 #include "file/config.h"
 #include "image.h"
@@ -12,7 +10,6 @@
 using namespace MR;
 using namespace App;
 using namespace VT;
-
 
 #define DEFAULT_PMIN 0.2
 #define DEFAULT_PMAX 99.8
@@ -55,6 +52,9 @@ void usage ()
   SYNOPSIS = "preview images on the terminal (requires terminal with sixel support)";
 
   DESCRIPTION
+#ifdef MRTRIX_WINDOWS
+    + "NOTE: interactive mode is not currently supported on Windows."
+#endif
     + "This requires a terminal capable of displaying sixel graphics (e.g. iTerm2 on macOS, "
     "minTTY on Windows, mlTerm on Linux). Displays the image specified within the terminal, "
     "and allows interacting with the image. Press the ? key while running for runtime usage "
@@ -64,6 +64,11 @@ void usage ()
   + Argument ("in", "the input image.").type_image_in ();
 
   OPTIONS
+#ifndef MRTRIX_WINDOWS
+  + Option ("interactive",
+            "interactive mode. Default is true.")
+  +   Argument ("yesno").type_bool()
+#endif
   + Option ("axis",
             "specify projection of slice, as an integer representing the slice normal: "
             "0: L/R (sagittal); 1: A/P (coronal); 2 I/S (axial). Default is 2 (axial). ")
@@ -112,11 +117,7 @@ void usage ()
 
   + Option ("zoom",
             "scale the image size by the supplied factor")
-    + Argument ("factor").type_float()
-
-  + Option ("interactive",
-            "interactive mode. Default is true.")
-  +   Argument ("yesno").type_bool();
+    + Argument ("factor").type_float();
 }
 
 
@@ -142,6 +143,14 @@ Sixel::ColourMaps colourmaps;
 Sixel::ColourMaps plot_cmaps;
 
 
+inline std::string move_down (int n) {
+  if (interactive)
+    return move_cursor (Down, n);
+  std::string out;
+  for (int i = 0; i < n; ++i)
+    out += "\n";
+  return out;
+}
 
 
 // calculate percentile of a list of numbers
@@ -259,10 +268,13 @@ void autoscale (ImageType& image, Sixel::CMap& cmap)
   const int y_dim = image_regrid.size(y_axis);
   image_regrid.index(slice_axis) = focus[slice_axis];
 
-  std::vector<value_type> currentslice (x_dim*y_dim);
+  vector<value_type> currentslice (x_dim*y_dim);
   size_t k = 0;
-  for (auto l = Loop ({ size_t(x_axis), size_t(y_axis) })(image_regrid); l; ++l)
+  std::cerr.flush();
+  for (auto l = Loop ({ size_t(x_axis), size_t(y_axis) })(image_regrid); l; ++l) {
+    //std::cerr << "[" << image_regrid.index(0) << " " << image_regrid.index(1) << " " << image_regrid.index(2) << "] ";
     currentslice[k++] = image_regrid.value();
+  }
 
   value_type vmin = percentile(currentslice, pmin);
   value_type vmax = percentile(currentslice, pmax);
@@ -443,11 +455,11 @@ std::string plot (ImageType& image, int plot_axis)
   }
 
   // encode buffer and print out:
-  std::string out = move_cursor (Down, 2);
-  out += CarriageReturn + str(vmax) + move_cursor(Down,1) + CarriageReturn
+  std::string out = move_down (2);
+  out += CarriageReturn + str(vmax) + move_down(1) + CarriageReturn
     + encoder.write()
     + ClearLine + str(vmin)
-    + move_cursor(Down,1) + CarriageReturn + ClearLine
+    + move_down(1) + CarriageReturn + ClearLine
     + "plot axis: " + str(plot_axis) + " | x range: [ 0 " + str(plotslice.size() - 1) + " ]";
 
   return out;
@@ -561,13 +573,13 @@ std::string display (ImageType& image, Sixel::ColourMaps& colourmaps)
     out += ClearLine;
     if (arrow_mode == ARROW_COLOUR)
       out += TextForegroundYellow;
-    out += str(cmap.max(),4) + TextReset + move_cursor(Down,1) + position_cursor_at_col (2);
+    out += str(cmap.max(),4) + TextReset + move_down(1) + position_cursor_at_col (2);
 
     out += display_image (image, cmap, 2*COLOURBAR_WIDTH) + CarriageReturn + ClearLine;
 
     if (arrow_mode == ARROW_COLOUR)
       out += TextForegroundYellow;
-    out += str(cmap.min(), 4) + TextReset + move_cursor(Down,1) + CarriageReturn;
+    out += str(cmap.min(), 4) + TextReset + move_down(1) + CarriageReturn;
   }
 
 
@@ -641,7 +653,7 @@ void show_help ()
   std::cout << out;
   std::cout.flush();
 
-  struct Callback : public EventLoop::CallBack
+  struct CallBack : public EventLoop::CallBack
   {
     bool operator() (int event, const std::vector<int>& param) override { return event == 0; }
   } callback;
@@ -663,9 +675,9 @@ bool query_int (const std::string& prompt,
   std::cout << CarriageReturn << ClearLine << prompt;
   std::cout.flush();
 
-  struct Callback : public EventLoop::CallBack
+  struct CallBack : public EventLoop::CallBack
   {
-    Callback (int vmin, int vmax) : vmin (vmin), vmax (vmax) { }
+    CallBack (int vmin, int vmax) : vmin (vmin), vmax (vmax) { }
     bool operator() (int event, const std::vector<int>& param) override
     {
       if (event == CarriageReturn)
@@ -921,11 +933,14 @@ void run ()
   INFO("zoom: " + str(zoom));
   zoom /= std::min (std::min (image.spacing(0), image.spacing(1)), image.spacing(2));
 
+#ifndef MRTRIX_WINDOWS
   //CONF option: MRPeekInteractive
   if (!interactive or !get_option_value ("interactive", File::Config::get_bool ("MRPeekInteractive", true))) {
+#endif
     interactive = false;
     std::cout << display (image, colourmaps) << "\n";
     return;
+#ifndef MRTRIX_WINDOWS
   }
 
 
@@ -944,4 +959,5 @@ void run ()
     exit_raw_mode();
     throw;
   }
+#endif
 }

@@ -30,6 +30,8 @@ namespace MR {
     constexpr const char* LeftRightArrow = "\u2194";
     constexpr const char* UpDownArrow = "\u2194";
 
+    constexpr const char* RequestCursorPosition = "\x1b[6n";
+
     constexpr char Escape = '\x1b';
     constexpr char CtrlC = '\x03';
     constexpr char CarriageReturn = '\r';
@@ -89,13 +91,6 @@ namespace MR {
     void enter_raw_mode();
     void exit_raw_mode();
 
-    void get_cursor_position (int& row, int& col);
-    inline void get_terminal_size (int& rows, int& cols)
-    {
-      std::cout << position_cursor_at (999,999);
-      get_cursor_position (rows,cols);
-    }
-
 
 
     class EventLoop
@@ -125,10 +120,10 @@ namespace MR {
         }
 
         void fill_buffer ();
-        void esc ();
-        void CSI ();
-        void OSC ();
-        void mouse ();
+        bool esc ();
+        bool CSI ();
+        bool OSC ();
+        bool mouse ();
     };
 
 

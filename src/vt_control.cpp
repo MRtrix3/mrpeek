@@ -1,8 +1,12 @@
 #include <iostream>
-#include <termios.h>
 #include <unistd.h>
 #include <thread>
-#include <poll.h>
+
+#ifndef MRTRIX_WINDOWS
+# include <termios.h>
+# include <poll.h>
+#endif
+
 
 #include "exception.h"
 #include "vt_control.h"
@@ -21,12 +25,18 @@
 namespace MR {
   namespace VT {
 
+
+
     namespace {
+#ifndef MRTRIX_WINDOWS
       struct termios orig_termios;
+#endif
     }
+
 
     void enter_raw_mode ()
     {
+#ifndef MRTRIX_WINDOWS
       if (!isatty (STDOUT_FILENO))
         if (!freopen ("/dev/tty", "a", stdout))
           throw Exception ("failed to remap stdout to the terminal");
@@ -34,9 +44,6 @@ namespace MR {
       if (!isatty (STDIN_FILENO))
         if (!freopen ("/dev/tty", "r", stdin))
           throw Exception ("failed to remap stdin to the terminal");
-
-      std::cout << CursorOff << MouseTrackingOn;
-      std::cout.flush();
 
       // enable raw mode:
       struct termios raw;
@@ -48,62 +55,23 @@ namespace MR {
       raw.c_cc[VMIN] = 0;
       raw.c_cc[VTIME] = 0;
       tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+#endif
+
+      std::cout << CursorOff << MouseTrackingOn;
+      std::cout.flush();
     }
 
 
     void exit_raw_mode ()
     {
+#ifndef MRTRIX_WINDOWS
       tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
+#endif
       std::cout << CursorOn << MouseTrackingOff << "\n";
       std::cout.flush();
     }
 
 
-
-    void get_cursor_position (int& row, int& col)
-    {
-      std::cout << "\033[6n";
-      std::cout.flush();
-
-      int nread;
-      char c = '\0';
-
-      try {
-        while ((nread = read (STDIN_FILENO, &c, 1)) != 1) {
-          if (nread == -1 && errno != EAGAIN)
-            throw 1;
-          std::this_thread::sleep_for (std::chrono::milliseconds(10));
-        }
-
-        if (c != Escape)
-          throw 1;
-
-        std::string buf;
-        while ((nread = read (STDIN_FILENO, &c, 1)) == 1) {
-          if (c == '[' && buf.empty())
-            continue;
-          if (c == 'R')
-            break;
-          if (( c >= '0' && c <= '9') || c == ';')
-            buf += c;
-          else
-            throw 1;
-          if (buf.size() > 10)
-            throw 1;
-        }
-
-        auto xy = split (buf, ";");
-        if (xy.size() != 2)
-          throw 1;
-
-        row = to<int> (xy[0]);
-        col = to<int> (xy[1]);
-      }
-      catch (int) {
-        throw Exception ("unexpected response from terminal");
-      }
-
-    }
 
 
 
@@ -116,8 +84,14 @@ namespace MR {
         param.clear();
         uint8_t c = next();
 
-        if (c == Escape) esc();
-        else if (c == 0x9B) CSI();
+        if (c == Escape) {
+         if (!esc())
+           return;
+        }
+        else if (c == 0x9B) {
+          if (!CSI())
+            return;
+        }
         else if (!callback (c, param))
           return;
       }
@@ -126,40 +100,40 @@ namespace MR {
 
 
 
-    void EventLoop::esc ()
+    bool EventLoop::esc ()
     {
-      if (current_char+1 >= nread) {
-        callback (Escape, param);
-        return;
-      }
+      if (current_char+1 >= nread)
+        return callback (Escape, param);
+
       uint8_t c = next();
       if (c == '[')
-        CSI();
+        return CSI();
       else if (c == ']')
-        OSC();
+        return OSC();
       else if (c == 'O') {
         c = next();
-        callback (FunctionKey + c - 'P', param);
+        return callback (FunctionKey + c - 'P', param);
       }
       else if (c == Escape) {
-        callback (Escape, param);
-        esc();
+        if (!callback (Escape, param))
+          return false;
+        return esc();
       }
+      return true;
     }
 
 
 
-    void EventLoop::CSI ()
+    bool EventLoop::CSI ()
     {
       uint8_t c = next();
       if (c == '[') {
         next();
-        return;
+        return true;
       }
-      if (c == 'M') {
-        mouse ();
-        return;
-      }
+      if (c == 'M')
+        return mouse ();
+
       // ignore initial question mark if encountered. Not sure whether this is
       // the right thing to do...
       if (c == '?')
@@ -175,20 +149,19 @@ namespace MR {
         }
         else if (c == Escape) {
           param.clear();
-          esc();
+          return esc();
         }
         else if ((c >= 0x07 && c <= 0x0F) || c == 0x7F) { /* Control characters - ignore */ }
         else if (c == 0x9B) { // CSI
           param.clear();
-          CSI();
+          return CSI();
         }
         else if (c == 0x18 || c == 0x1A) // abort
-          return;
+          return true;
         else {
           if (buf.size())
             param.push_back (to<int>(buf));
-          callback (CSImask | c, param);
-          return;
+          return callback (CSImask | c, param);
         }
         c = next();
       }
@@ -196,7 +169,7 @@ namespace MR {
     }
 
 
-    void EventLoop::OSC ()
+    bool EventLoop::OSC ()
     {
       throw Exception ("unexpected OSC sequence");
     }
@@ -204,24 +177,25 @@ namespace MR {
 
 
 
-    void EventLoop::mouse ()
+    bool EventLoop::mouse ()
     {
       param.push_back (next()-0x20);
       param.push_back (next()-0x20);
       param.push_back (next()-0x20);
 
-      callback (MouseEvent, param);
+      return callback (MouseEvent, param);
     }
 
 
 
     void EventLoop::fill_buffer ()
     {
+      current_char = 0;
+
+#ifndef MRTRIX_WINDOWS
       struct pollfd pfd;
       pfd.fd = STDIN_FILENO;
       pfd.events = POLLIN;
-
-      current_char = 0;
 
       // if nothing on input stream, invoke idle event:
       poll (&pfd, 1, 0);
@@ -236,6 +210,7 @@ namespace MR {
         if (nread == -1 && errno != EAGAIN)
           throw Exception ("error reading user input");
       } while (nread == 0);
+#endif
     }
 
 
