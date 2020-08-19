@@ -424,7 +424,7 @@ std::string plot (ImageType& image, int plot_axis)
     assert(y < y_dim);
     assert(y >= 0);
 
-    if ((plot_axis < 3 && index == focus[plot_axis]) || (plot_axis > 2 && index == image.index(plot_axis))) {
+    if ((plot_axis < 3 && index == focus[plot_axis]) || (plot_axis > 2 && index == current_index)) {
       // focus position: draw []
       for (int r1 = -radius; r1 <= radius; ++r1)
         for (int r2 = -radius; r2 <= radius; ++r2)
