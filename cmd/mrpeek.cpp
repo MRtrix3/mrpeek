@@ -389,7 +389,7 @@ std::string plot (ImageType& image, int plot_axis)
   }
 
   if (!plot_cmaps.size())
-    plot_cmaps.add ({ { 0,0,0 }, { 50,50,50 }, {100,100,100} });
+    plot_cmaps.add (STATIC_CMAP);
 
   Sixel::Encoder encoder (x_dim, y_dim, plot_cmaps);
   auto canvas = encoder.viewport();
@@ -399,16 +399,16 @@ std::string plot (ImageType& image, int plot_axis)
   const int x_offset = pad, y_offset = y_dim-1-pad;
   // coordinate axes
   for (int x = 0; x < x_dim; ++x)
-    canvas(x, y_offset) = STANDARD_COLOUR;
+    canvas(x, y_offset) = HIGHLIGHT_COLOUR;
   for (int y = 0; y < y_dim; ++y)
-    canvas(x_offset, y) = STANDARD_COLOUR;
+    canvas(x_offset, y) = HIGHLIGHT_COLOUR;
   for (int index = 0; index < plotslice.size(); ++index) {
     int x = std::round(float(index) / (plotslice.size() - 1) * (x_dim - 2 * pad));
     assert(x < x_dim);
     assert(x >= 0);
     int r0 = (index % 10) == 0 ? -pad : -std::max(1, pad/2);
     for (int y = r0; y < 0; ++y)
-      canvas(x_offset + x, y_offset - y) = STANDARD_COLOUR;
+      canvas(x_offset + x, y_offset - y) = HIGHLIGHT_COLOUR;
   }
 
   for (int index = 0; index < plotslice.size(); ++index) {
@@ -425,10 +425,12 @@ std::string plot (ImageType& image, int plot_axis)
     assert(y >= 0);
 
     if ((plot_axis < 3 && index == focus[plot_axis]) || (plot_axis > 2 && index == current_index)) {
-      // focus position: draw []
-      for (int r1 = -radius; r1 <= radius; ++r1)
-        for (int r2 = -radius; r2 <= radius; ++r2)
-          canvas(x_offset + (x+r1), y_offset - (y+r2)) = STANDARD_COLOUR;
+      // focus position: draw line
+      for (int r = 0; r < y_offset; ++r)
+        canvas (x_offset+x, r) = STANDARD_COLOUR;
+      //for (int r1 = -radius; r1 <= radius; ++r1)
+        //for (int r2 = -radius; r2 <= radius; ++r2)
+          //canvas(x_offset + (x+r1), y_offset - (y+r2)) = STANDARD_COLOUR;
     }
 
     // plot line segment
@@ -436,7 +438,7 @@ std::string plot (ImageType& image, int plot_axis)
       assert(x > last_x);
       delta_x = x - last_x;
       for (int dx = 0; dx <= delta_x; ++dx)
-        canvas(x_offset + (last_x + dx), y_offset - std::round((float(y * dx) + float(last_y * (delta_x - dx))) / delta_x)) = 1;
+        canvas(x_offset + (last_x + dx), y_offset - std::round((float(y * dx) + float(last_y * (delta_x - dx))) / delta_x)) = STANDARD_COLOUR;
     }
 
     // data: draw +
