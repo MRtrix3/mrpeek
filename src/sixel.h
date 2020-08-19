@@ -10,200 +10,202 @@ namespace MR {
 
     namespace {
       bool need_newline_after_sixel = true;
+#ifndef NDEBUG
+      uint8_t* data_debug = nullptr;
+#endif
     }
 
     constexpr float BrightnessIncrement = 0.01f;
     constexpr float ContrastIncrement = 0.03f;
 
-    class ColourMap {
-      public:
-        ColourMap (const ::MR::ColourMap::Entry& colourmapper, int number_colours) :
-          num_colours (number_colours),
-          _offset(NaN),
-          _scale (NaN) {
-            const auto& map_fn = colourmapper.basic_mapping;
-            for (int n = 0; n <= num_colours; ++n) {
-              const Eigen::Array3f colour = 100.0*map_fn (float(n)/num_colours);
-              auto ns = str(std::round ((100.0*n)/num_colours));
-              specifier += "#"+str(n)+";2;"+
-                str(std::round(colour[0]))+";"+
-                str(std::round(colour[1]))+";"+
-                str(std::round(colour[2]));
-            }
-            specifier += "#"+str(num_colours+1)+";2;100;100;0";    // crosshair
-            specifier += "#"+str(num_colours+2)+";2;30;30;30";     // boundingbox
-            specifier += "#"+str(num_colours+3)+";2;55;55;40$\n";  // boundingbox highlight
-          }
+    constexpr const char* SixelStart = "\033Pq$";
+    constexpr const char* SixelStop = "\033\\";
 
-        const std::string& spec () const { return specifier; }
-        const int maximum () const { return num_colours+3; }
-        const int range () const { return num_colours; }
-        const int crosshairs() const { return num_colours+1; }
-        const int boundingbox(bool highlight = false) const { return num_colours+2+int(highlight); }
+    void init();
+
+
+
+
+    class CMap {
+      public:
+        CMap (int ID, int index, int ncolours) :
+          ID (ID),
+          index (index),
+          ncolours (ncolours),
+          _offset (NaN),
+          _scale (NaN) { }
 
 
         // apply rescaling from floating-point value to clamped rescaled
         // integer:
-        int rescale (float value) const {
+        int operator() (float value) const {
           int val = std::round (_offset + _scale * value);
-          return std::min (std::max (val,0), num_colours);
+          return index + std::min (std::max (val,0), ncolours);
         }
 
         // set offset * scale parameters to adjust brightness / contrast:
         bool scaling_set () const { return std::isfinite (_offset) && std::isfinite (_scale); }
         void invalidate_scaling () { _offset = _scale = NaN; }
-        void set_scaling (float offset, float scale) { _offset = offset*num_colours; _scale = scale*num_colours; }
+        void set_scaling (float offset, float scale) { _offset = offset*ncolours; _scale = scale*ncolours; }
         void set_scaling_min_max (float vmin, float vmax) { float dv = vmax - vmin; set_scaling (-vmin/dv, 1.0f/dv ); }
         void update_scaling (int x, int y) {
-          float mid = (num_colours*(0.5f - BrightnessIncrement*x) - _offset) / _scale;
+          float mid = (ncolours*(0.5f - BrightnessIncrement*x) - _offset) / _scale;
           _scale = std::exp (std::log(_scale) - ContrastIncrement * y);
-          _offset = 0.5f*num_colours - _scale*mid;
+          _offset = 0.5f*ncolours - _scale*mid;
         }
-        const float offset () const { return _offset/num_colours; }
-        const float scale () const { return _scale/num_colours; }
+        const float offset () const { return _offset/ncolours; }
+        const float scale () const { return _scale/ncolours; }
         const float min () const { return -offset() / scale(); }
         const float max () const { return (1.f - offset()) / scale(); }
 
+        void set_levels (int levels) {
+          float m = scale(), c = offset();
+          ncolours = levels;
+          set_scaling (c, m);
+        }
+        int levels () const { return ncolours; }
+
+        int last_index () const { return index + ncolours; }
+        std::string specifier () const;
+
+        int ID, index;
+
       private:
-        int num_colours;
+        int ncolours;
         float _offset, _scale;
-        std::string specifier;
     };
 
 
 
 
 
-    // template parameters set horizontal and vertical grid size
-    template <int gx = 1, int gy = 1>
-    class Encoder {
+
+    class ColourMaps {
       public:
-        Encoder (int x_dim, int y_dim, const ColourMap& colourmap) :
+        void add (int colourmap_ID, int num_colours) {
+          cmaps.push_back({ colourmap_ID, next_index(), num_colours });
+        }
+
+        void add (const std::vector<std::array<int, 3>>& colours) {
+          assert (cmaps.empty());
+          fixed_cmap_specifier.clear();
+          cmaps.push_back ({ -1, 0, int(colours.size()) });
+          for (int n = 0; n < colours.size(); ++n) {
+            fixed_cmap_specifier += "#"+str(n)+";2;"+
+              str(colours[n][0])+";"+
+              str(colours[n][1])+";"+
+              str(colours[n][2]);
+          }
+        }
+        int size () const { return cmaps.size(); }
+        const CMap& operator[] (int n) const { return cmaps[n]; }
+        CMap& operator[] (int n) { return cmaps[n]; }
+
+        std::string specifier () const {
+          std::string out = fixed_cmap_specifier;
+          for (const auto& c : cmaps)
+            out += c.specifier();
+          return out;
+        }
+        const int maximum () const { return cmaps.back().last_index(); }
+
+      private:
+        std::vector<CMap> cmaps;
+        std::string fixed_cmap_specifier;
+
+        int next_index () const {
+          return cmaps.size() ? cmaps.back().last_index()+1 : 0;
+        }
+
+    };
+
+
+
+
+
+
+    class ViewPort {
+      public:
+        ViewPort (uint8_t* data, int x_dim, int y_dim, int x_stride) :
+          data (data),
           x_dim (x_dim),
           y_dim (y_dim),
-          gi (0), gj (0),
-          // make sure data buffer is a multiple of 6 to avoid overflow:
-          data (gx*x_dim*6*std::ceil(gy*y_dim/6.0), 0),
+          x_stride (x_stride) {
+#ifndef NDEBUG
+            int x = (data - data_debug) % x_stride;
+            int y = (data - data_debug) / x_stride;
+            std::cerr << "viewport at " << x << " " << y
+              << ", size " << x_dim << " " << y_dim
+              << ", stride " << x_stride
+              << ", max " << x+x_dim << " " << y+y_dim << "\n";
+#endif
+          }
+
+        uint8_t& operator() (int x, int y) const {
+          assert (x >= 0 && x < x_dim);
+          assert (y >= 0 && y < y_dim);
+          return data[x+x_stride*y];
+        }
+
+        int xdim () const { return x_dim; }
+        int ydim () const { return y_dim; }
+
+        ViewPort viewport (int x, int y, int size_x = -1, int size_y = -1) const {
+          if (size_x < 0) size_x = x_dim-x;
+          if (size_y < 0) size_y = y_dim-y;
+          return { data + x + y*x_stride, size_x, size_y, x_stride };
+        }
+
+      private:
+        uint8_t* data;
+        int x_dim, y_dim, x_stride;
+    };
+
+
+
+
+
+
+    // template parameters set horizontal and vertical grid size
+    class Encoder {
+      public:
+        Encoder (int x_dim, int y_dim, const ColourMaps& colourmap) :
           colourmap (colourmap),
+          x_dim (x_dim),
+          y_dim (y_dim),
+          data (x_dim*y_dim, 0),
           current (255),
-          repeats (0) { }
-
-        void set_panel (int k) {
-          assert (k < gx*gy);
-          gi = k % gx;
-          gj = k / gx;
-        }
-
-        // set value at (x,y), rescaling as per colourmap parameters:
-        void operator() (int x, int y, float value) {
-          int val = colourmap.rescale (value);
-          data[mapxy(x,y)] = val;
-        }
-
-        // add yellow crosshairs at the specified position:
-        void draw_crosshairs (int x0, int y0) {
-          for (int x = 0; x < x_dim; ++x)
-            data[mapxy(x,y0)] = colourmap.crosshairs();
-          for (int y = 0; y < y_dim; ++y)
-            data[mapxy(x0,y)] = colourmap.crosshairs();
-        }
-
-        // add yellow crosshairs at the specified position:
-        void draw_boundingbox (bool highlight = false) {
-          for (int x = 0; x < x_dim; ++x) {
-            data[mapxy(x,0)] = colourmap.boundingbox(highlight);
-            data[mapxy(x,y_dim-1)] = colourmap.boundingbox(highlight);
+          repeats (0) {
+#ifndef NDEBUG
+            data_debug = &data[0]; std::cerr << "canvas: " << x_dim << " " << y_dim << "\n";
+#endif
           }
-          for (int y = 0; y < y_dim; ++y) {
-            data[mapxy(0,y)] = colourmap.boundingbox(highlight);
-            data[mapxy(x_dim-1,y)] = colourmap.boundingbox(highlight);
-          }
+
+        // once slice is fully specified, encode and write to string:
+        std::string write ();
+
+        ViewPort viewport (int x, int y, int size_x = -1, int size_y = -1) {
+          if (size_x < 0) size_x = x_dim-x;
+          if (size_y < 0) size_y = y_dim-y;
+          return { &data[0] + x + y*x_dim, size_x, size_y, x_dim };
         }
 
-        void draw_colourbar () {
-          const int h = 90, w = 14;
-          if (x_dim < 2*w || y_dim < 2*h)
-            return;
-          int y1 = y_dim-4, y0 = y1-h-1;
-          int x1 = x_dim-4, x0 = x1-w-1;
-
-          for (int y = y0; y <= y1; y++) {
-            int val = (h-(y-y0)) * colourmap.range() / h;
-            for (int x = x0; x <= x1; x++) {
-              data[mapxy(x,y)] = (y==y0 || y==y1 || x==x0 || x==x1) ? colourmap.crosshairs() : val;
-            }
-          }
-        }
-
-        // once slice is fully specified, encode and write to stdout:
-        void write () {
-          std::string out = VT::SixelStart + colourmap.spec();
-
-          for (int y = 0; y < gy*y_dim; y += 6)
-            out += encode (y);
-
-          out += VT::SixelStop;
-
-          if (need_newline_after_sixel)
-            out += VT::move_cursor (VT::Down,1) + VT::CarriageReturn;
-
-          std::cout << out;
+        ViewPort viewport () {
+          return { &data[0], x_dim, y_dim, x_dim };
         }
 
       private:
 
+        const ColourMaps& colourmap;
         int x_dim, y_dim;
-        int gi, gj;
         std::vector<uint8_t> data;
-        const ColourMap& colourmap;
         std::string buffer;
         uint8_t current;
         int repeats;
 
-        inline size_t mapxy (int x, int y) const {
-          assert (x < x_dim);
-          assert (y < y_dim);
-          return x + x_dim*(gi + gx*(y + y_dim*gj));
-        }
+        std::string encode (int y0);
 
-        std::string encode (int y0) {
-          std::string out;
-
-          for (int intensity = 0; intensity <= colourmap.maximum(); ++intensity) {
-            for (int i = y0*gx*x_dim; i < (y0+6)*gx*x_dim; ++i) {
-              // if any voxel in buffer has this intensity, then need to encode the
-              // whole row of sixels:
-              if (data[i] == intensity) {
-                out += encode (y0, intensity);
-                break;
-              }
-            }
-          }
-          // replace last character from $ (carriage return) to '-' (newline):
-          out.back() = '-';
-          return out;
-        }
-
-
-        std::string encode (const int y0, const int intensity)
-        {
-          std::string out;
-          clear();
-          for (int x = 0; x < gx*x_dim; ++x) {
-            int index = x + y0*gx*x_dim;
-            uint8_t s = 0;
-            if (data[index] == intensity) s |= 1U; index += gx*x_dim;
-            if (data[index] == intensity) s |= 2U; index += gx*x_dim;
-            if (data[index] == intensity) s |= 4U; index += gx*x_dim;
-            if (data[index] == intensity) s |= 8U; index += gx*x_dim;
-            if (data[index] == intensity) s |= 16U; index += gx*x_dim;
-            if (data[index] == intensity) s |= 32U;
-            add (s);
-          }
-          commit (true);
-          out += "#" + str(intensity) + buffer + '$';
-          return out;
-        }
+        std::string encode (const int y0, const int intensity);
 
         void add (uint8_t c) {
           if (c == current)
@@ -235,17 +237,6 @@ namespace MR {
     };
 
 
-
-
-
-
-    inline void init()
-    {
-      int row, col;
-      std::cout << VT::CursorHome << VT::SixelStart << "#0;2;0;0;0$#0?!200-" << VT::SixelStop;
-      VT::get_cursor_position (row,col);
-      need_newline_after_sixel = (row==1);
-    }
 
   }
 }
