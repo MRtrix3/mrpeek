@@ -17,7 +17,7 @@ using namespace VT;
 #define CROSSHAIR_COLOUR 1
 #define STANDARD_COLOUR 2
 #define HIGHLIGHT_COLOUR 3
-#define STATIC_CMAP { {0,0,0}, { 100,100,0 }, {50,50,50}, {100,100,100} }
+#define STATIC_CMAP { {0,0,0}, { 50,50,0 }, {50,50,50}, {100,100,100} }
 
 #define COLOURBAR_WIDTH 10
 
@@ -427,18 +427,28 @@ std::string plot (ImageType& image, int plot_axis)
     if ((plot_axis < 3 && index == focus[plot_axis]) || (plot_axis > 2 && index == current_index)) {
       // focus position: draw line
       for (int r = 0; r < y_offset; ++r)
-        canvas (x_offset+x, r) = STANDARD_COLOUR;
-      //for (int r1 = -radius; r1 <= radius; ++r1)
-        //for (int r2 = -radius; r2 <= radius; ++r2)
-          //canvas(x_offset + (x+r1), y_offset - (y+r2)) = STANDARD_COLOUR;
+        canvas (x_offset+x, r) = CROSSHAIR_COLOUR;
     }
 
     // plot line segment
     if (connect_dots) {
       assert(x > last_x);
       delta_x = x - last_x;
-      for (int dx = 0; dx <= delta_x; ++dx)
-        canvas(x_offset + (last_x + dx), y_offset - std::round((float(y * dx) + float(last_y * (delta_x - dx))) / delta_x)) = STANDARD_COLOUR;
+      int yp = 0;
+      const int ydiff = y-last_y;
+      for (int dx = 0; dx <= delta_x; ++dx) {
+        while (std::round (float(delta_x*yp)/float(ydiff)) == dx) {
+          canvas (x_offset + (last_x + dx), y_offset-(last_y+yp)) = STANDARD_COLOUR;
+          if (ydiff > 0) {
+            if (++yp > ydiff)
+              break;
+          }
+          else {
+            if (--yp < ydiff)
+              break;
+          }
+        }
+      }
     }
 
     // data: draw +
