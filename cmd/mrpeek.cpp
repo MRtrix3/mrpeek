@@ -367,15 +367,10 @@ std::string plot (ImageType& image, int plot_axis)
   const int x_dim = std::max(100.0, 2.0f * std::max(std::max (image.size(0)*image.spacing(0), image.size(1)*image.spacing(1)), image.size(2)*image.spacing(2)) * zoom) + 2 * pad;
   const int y_dim = std::round((float) x_dim / 1.618033) + 2 * pad;
 
-  for (int n = 0; n < 3; ++n) {
-    if (focus[n] < 0) focus[n] = 0;
-    if (focus[n] >= image.size(n)) focus[n] = image.size(n)-1;
-  }
-
   for (int n = 0; n < 3; ++n)
     image.index(n) = focus[n];
-  for (size_t n = 3; n < image.ndim(); ++n)
-    image.index(n) = image.index(n);
+
+  ssize_t current_index = image.index (plot_axis);
   image.index(plot_axis) = 0;
 
   std::vector<value_type> plotslice (image.size(plot_axis));
@@ -453,6 +448,8 @@ std::string plot (ImageType& image, int plot_axis)
     connect_dots = true;
     last_x = x; last_y = y;
   }
+
+  image.index (plot_axis) = current_index;
 
   // encode buffer and print out:
   std::string out = move_down (2);
