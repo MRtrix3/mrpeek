@@ -3,6 +3,9 @@
 namespace MR {
   namespace Sixel {
 
+    namespace {
+      bool need_newline_after_sixel = true;
+    }
 
     std::string CMap::specifier () const {
       std::string out;

@@ -221,7 +221,7 @@ inline std::string show_focus (ImageType& image)
     }
     out += str(focus[d]) + TextReset + " ";
   }
-  for (size_t n = 3; n < image.ndim(); ++n) {
+  for (int n = 3; n < int(image.ndim()); ++n) {
     if (n == vol_axis && arrow_mode == ARROW_SLICEVOL)
       out += std::string(UpDownArrow) + TextForegroundYellow;
     out += str(image.index(n)) + TextReset + " ";
@@ -402,7 +402,7 @@ std::string plot (ImageType& image, int plot_axis)
     canvas(x, y_offset) = HIGHLIGHT_COLOUR;
   for (int y = 0; y < y_dim; ++y)
     canvas(x_offset, y) = HIGHLIGHT_COLOUR;
-  for (int index = 0; index < plotslice.size(); ++index) {
+  for (int index = 0; index < int(plotslice.size()); ++index) {
     int x = std::round(float(index) / (plotslice.size() - 1) * (x_dim - 2 * pad));
     assert(x < x_dim);
     assert(x >= 0);
@@ -411,7 +411,7 @@ std::string plot (ImageType& image, int plot_axis)
       canvas(x_offset + x, y_offset - y) = HIGHLIGHT_COLOUR;
   }
 
-  for (int index = 0; index < plotslice.size(); ++index) {
+  for (int index = 0; index < int(plotslice.size()); ++index) {
     // ignore non-finite point, don't connect neighbouring data
     if (!std::isfinite(plotslice[index])) {
       connect_dots = false;
@@ -849,7 +849,7 @@ class CallBack : public EventLoop::CallBack
 
         default:
                   if (event >= '1' && event <= '9') {
-                    int idx = event - '1';
+                    size_t idx = event - '1';
                     if (idx < colourmap_choices_std.size()) {
                       colourmaps[1].ID = idx;
                       break;
@@ -898,7 +898,7 @@ void run ()
 
   do_plot = get_options ("plot").size();
   plot_axis = get_option_value ("plot", plot_axis);
-  if (plot_axis >= image.ndim())
+  if (plot_axis >= int(image.ndim()))
     throw Exception("plot axis larger than image dimension, needs to be in [0..." + str(image.ndim()-1) + "].");
 
   //CONF option: MRPeekColourmapLevels

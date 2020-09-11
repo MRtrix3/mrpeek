@@ -9,7 +9,6 @@ namespace MR {
   namespace Sixel {
 
     namespace {
-      bool need_newline_after_sixel = true;
 #ifndef NDEBUG
       uint8_t* data_debug = nullptr;
 #endif
@@ -90,7 +89,7 @@ namespace MR {
           assert (cmaps.empty());
           fixed_cmap_specifier.clear();
           cmaps.push_back ({ -1, 0, int(colours.size()) });
-          for (int n = 0; n < colours.size(); ++n) {
+          for (size_t n = 0; n < colours.size(); ++n) {
             fixed_cmap_specifier += "#"+str(n)+";2;"+
               str(colours[n][0])+";"+
               str(colours[n][1])+";"+
