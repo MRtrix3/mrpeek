@@ -20,6 +20,7 @@ First, you'll need a terminal that supports [sixel encoding](https://github.com/
 - [iTerm2](https://www.iterm2.com/) on macOS
 - [minTTY](https://mintty.github.io/) on Windows (available by default with
   [MSYS2](https://www.msys2.org/) installs)
+- [WSLtty](https://github.com/mintty/wsltty) on [Windows Subsystem for Linux (WSL)](https://docs.microsoft.com/en-us/windows/wsl/)
 
 Next, you need to build `mrpeek` from source, following these instructions:
 
@@ -134,7 +135,5 @@ to: the next stage will compile what needs to be compiled for `mrpeek` itself.
 - Once you have code that more or less does what it's supposed to do, don't hesitate to [push your branch to GitHub](https://help.github.com/en/github/using-git/pushing-commits-to-a-remote-repository) and [create a pull request](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request) for it. 
 
 - We have protected the master branch so that changes (pull requests) require [review before merging](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/reviewing-changes-in-pull-requests). This is probably not required for a small project like this, but it's a great way to ensure your changes are noticed by the other contributors and discussed if needed. It's also how things are likely to be done on any reasonable size project, so it's a good idea to get used to the process. 
-
-- Make sure you communicate with us and most importantly with each other. Don't hesitate to discuss on the Mattermost channel, document issues / features required on the [issue tracker](https://github.com/MRtrix3/mrpeek/issues) and/or [project board](https://github.com/MRtrix3/mrpeek/projects/1), and engage via the video channel. Collaborative projects require a _lot_ more discussion and coordination than you might expect!
 
 - Above all, have fun and experiment with the code! It's the best way to learn.
