@@ -22,7 +22,7 @@ jobs:
       
     - name: configure MRtrix3 core
       working-directory: mrtrix3
-      run: CFLAGS="-static-libgcc -static-libstdc++" TIFF_CFLAGS=none FFTW_CFLAGS=none PNG_CFLAGS=none ./configure -nogui -noshared || { cat configure.log; false; }
+      run: LINKFLAGS="-static-libgcc -static-libstdc++" TIFF_CFLAGS=none FFTW_CFLAGS=none PNG_CFLAGS=none ./configure -nogui -noshared || { cat configure.log; false; }
 
     - name: build
       run: ./mrtrix3/build -nowarnings -persistent -nopaginate || { cat build.log; false; }
