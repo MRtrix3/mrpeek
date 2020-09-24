@@ -1,0 +1,34 @@
+name: package-linux
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  package:
+
+    runs-on: ubuntu-16.04
+    
+    steps:
+    - uses: actions/checkout@v1
+
+    - name: install dependencies
+      run: |
+         sudo apt-get update
+         sudo apt-get install clang-5.0 libeigen3-dev zlib1g-dev
+         
+    - name: fetch MRtrix3 core
+      run: git clone https://github.com/MRtrix3/mrtrix3.git
+      
+    - name: configure MRtrix3 core
+      working-directory: mrtrix3
+      run: ./configure -nogui -noshared || { cat configure.log; false; }
+
+    - name: build
+      run: ./mrtrix3/build -nowarnings -persistent -nopaginate || { cat build.log; false; }
+
+    - name: Upload package to GitHub Release
+      uses: AButler/upload-release-assets@v2.0
+      with:
+        files: 'bin/mrpeek'
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
