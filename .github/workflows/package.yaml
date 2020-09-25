@@ -1,0 +1,81 @@
+name: package
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  package-linux:
+
+    runs-on: ubuntu-latest
+
+    container:
+      image: ubuntu:trusty
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: add ubuntu-toolchain PPA
+      run: |
+        apt-get install -y software-properties-common
+        add-apt-repository -y ppa:ubuntu-toolchain-r/test
+
+    - name: update and install dependencies
+      run: |
+        apt-get update
+        apt-get upgrade -y
+        apt-get install -y g++-9 git zlib1g-dev python
+
+    - name: fetch Eigen3
+      run: git clone --single-branch --branch 3.3.7 https://gitlab.com/libeigen/eigen.git
+
+    - name: fetch MRtrix core
+      run: git clone --single-branch --branch master https://github.com/MRtrix3/mrtrix3.git
+
+    - name: configure MRtrix3 core
+      working-directory: mrtrix3
+      run: CXX=g++-9 LINKFLAGS="-static-libgcc -static-libstdc++" EIGEN_CFLAGS="-isystem $(pwd)/../eigen" TIFF_CFLAGS=none FFTW_CFLAGS=none PNG_CFLAGS=none ./configure -nogui -noshared
+
+    - name: build
+      run: ./mrtrix3/build
+
+    - name: package
+      run: tar cvfz mrpeek-linux.tar.gz -C bin/ mrpeek
+
+    - name: Upload package to GitHub Release
+      uses: AButler/upload-release-assets@v2.0
+      with:
+        files: 'mrpeek-linux.tar.gz'
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+
+
+  package-macos:
+    runs-on: macos-latest
+
+    env:
+      MACOSX_DEPLOYMENT_TARGET: 10.13
+
+    steps:
+    - uses: actions/checkout@v1
+
+    - name: fetch Eigen3
+      run: git clone --single-branch --branch 3.3.7 https://gitlab.com/libeigen/eigen.git
+
+    - name: fetch MRtrix3 core
+      run: git clone --single-branch --branch master https://github.com/MRtrix3/mrtrix3.git
+
+    - name: configure MRtrix3 core
+      working-directory: mrtrix3
+      run: EIGEN_CFLAGS="-isystem $(pwd)/../eigen" TIFF_CFLAGS=none FFTW_CFLAGS=none PNG_CFLAGS=none ./configure -nogui -noshared || { cat configure.log; false; }
+
+    - name: build
+      run: ./mrtrix3/build -nowarnings -persistent -nopaginate || { cat build.log; false; }
+
+    - name: package
+      run: tar cvfz mrpeek-macos.tar.gz -C bin/ mrpeek
+
+    - name: Upload package to GitHub Release
+      uses: AButler/upload-release-assets@v2.0
+      with:
+        files: 'mrpeek-macos.tar.gz'
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
