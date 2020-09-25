@@ -271,7 +271,7 @@ void autoscale (ImageType& image, Sixel::CMap& cmap)
   vector<value_type> currentslice (x_dim*y_dim);
   size_t k = 0;
   std::cerr.flush();
-  for (auto l = Loop ({ size_t(x_axis), size_t(y_axis) })(image_regrid); l; ++l) {
+  for (auto l = Loop (vector<size_t>({ size_t(x_axis), size_t(y_axis) }))(image_regrid); l; ++l) {
     //std::cerr << "[" << image_regrid.index(0) << " " << image_regrid.index(1) << " " << image_regrid.index(2) << "] ";
     currentslice[k++] = image_regrid.value();
   }
@@ -376,7 +376,7 @@ std::string plot (ImageType& image, int plot_axis)
   std::vector<value_type> plotslice (image.size(plot_axis));
   std::vector<value_type> plotslice_finite (image.size(plot_axis));
   size_t k = 0;
-  for (auto l = Loop ({ size_t(plot_axis) })(image); l; ++l) {
+  for (auto l = Loop (plot_axis)(image); l; ++l) {
     plotslice[k] = image.value();
     plotslice_finite[k] = plotslice[k];
     ++k;
