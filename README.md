@@ -1,6 +1,6 @@
 # `mrpeek`: a medical image viewer in the terminal
 
-Launched as a project for the [OHBM BrainHack 2020](https://ohbm.github.io/hackathon2020/), `mrpeek` allows to quickly inspect 3-D and 4-D medical images without leaving the terminal. Demo [here](https://twitter.com/jdtournier/status/1273657837034655744?s=20).
+Launched as a project for the [OHBM BrainHack 2020](https://ohbm.github.io/hackathon2020/), `mrpeek` allows to quickly inspect 3-D and 4-D medical images without leaving the terminal. 
 
 > **NOTE:** this currently compiles and runs on GNU/Linux & macOS systems, but
 > *not* on Windows with MinGW (e.g. via [MSYS2](https://www.msys2.org/) as we
