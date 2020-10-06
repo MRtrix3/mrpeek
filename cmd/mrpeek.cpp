@@ -496,7 +496,7 @@ std::string display_image (ImageType& image, const Sixel::CMap& cmap, int colour
     };
 
     // set up canvas:
-    const int panel_y_dim = std::max(regrid[1].size(1), regrid[2].size(2));
+    const int panel_y_dim = std::max(regrid[0].size(2), regrid[2].size(1));
     Sixel::Encoder encoder (colourbar_offset + regrid[0].size(1)+regrid[1].size(0)+regrid[2].size(0),
         panel_y_dim, colourmaps);
 
