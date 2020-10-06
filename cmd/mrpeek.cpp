@@ -3,7 +3,9 @@
 #include "image.h"
 #include "algo/loop.h"
 #include "interp/nearest.h"
-#include "filter/resize.h"
+#include "interp/linear.h"
+#include "interp/cubic.h"
+#include "filter/reslice.h"
 
 #include "sixel.h"
 
@@ -494,7 +496,7 @@ std::string display_image (ImageType& image, const Sixel::CMap& cmap, int colour
     };
 
     // set up canvas:
-    int panel_y_dim = std::max(regrid[1].size(1), regrid[2].size(1));
+    const int panel_y_dim = std::max(regrid[1].size(1), regrid[2].size(2));
     Sixel::Encoder encoder (colourbar_offset + regrid[0].size(1)+regrid[1].size(0)+regrid[2].size(0),
         panel_y_dim, colourmaps);
 
