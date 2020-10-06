@@ -30,8 +30,9 @@ First, you'll need a terminal that supports [sixel encoding](https://github.com/
   [MSYS2](https://www.msys2.org/) installs)
 - [WSLtty](https://github.com/mintty/wsltty) on [Windows Subsystem for Linux (WSL)](https://docs.microsoft.com/en-us/windows/wsl/)
 
-Next, you need to build `mrpeek` from source, following these instructions:
+Next, install `mrpeek` using the precompiled executables provided in [the latest release](https://github.com/MRtrix3/mrpeek/releases/latest). 
 
+If that doesn't work, or you wish to get involved in the development of `mrpeek`, you can build it from source following these instructions:
 
 ## Step 1: fetch the _MRtrix3_ source code
 
