@@ -11,7 +11,13 @@ Launched as a project for the [OHBM BrainHack 2020](https://ohbm.github.io/hacka
 > remote system - `mrpeek` only needs to be installed on the remote server, not
 > the local system (as long as the terminal supports sixel graphics).
 
+## Demonstration
+
 ![](mrpeek.gif)
+
+#### Using plot functionality with 4D data
+
+![](mrpeek_plot.gif)
 
 
 ## Getting started
