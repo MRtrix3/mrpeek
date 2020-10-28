@@ -119,7 +119,11 @@ void usage ()
 
   + Option ("zoom",
             "scale the image size by the supplied factor")
-    + Argument ("factor").type_float();
+    + Argument ("factor").type_float()
+
+  + Option ("text",
+            "optionally omit text output to show only the sixel image")
+  +   Argument ("yesno").type_bool();
 }
 
 
@@ -138,7 +142,7 @@ int levels = 32;
 int x_axis, y_axis, slice_axis = 2, plot_axis = slice_axis, vol_axis = -1;
 value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX, zoom = 1.0;
 bool crosshair = true, colorbar = true, orthoview = true, interactive = true;
-bool do_plot = false, show_image = true, interpolate = false;
+bool do_plot = false, show_image = true, interpolate = false, show_text = true;
 vector<int> focus (3, 0);  // relative to original image grid
 ArrowMode x_arrow_mode = ARROW_SLICEVOL, arrow_mode = x_arrow_mode;
 Sixel::ColourMaps colourmaps;
@@ -467,9 +471,9 @@ std::string plot (ImageType& image, int plot_axis)
 
   // encode buffer and print out:
   std::string out = move_down (2);
-  out += CarriageReturn + str(vmax) + move_down(1) + CarriageReturn
-    + encoder.write()
-    + ClearLine + str(vmin)
+  if (show_text) out += CarriageReturn + str(vmax) + move_down(1) + CarriageReturn;
+  out += encoder.write();
+  if (show_text) out += ClearLine + str(vmin)
     + move_down(1) + CarriageReturn + ClearLine
     + "plot axis: " + str(plot_axis) + " | x range: [ 0 " + str(plotslice.size() - 1) + " ]";
 
@@ -500,7 +504,7 @@ std::string display_image (ImageType& image, const Sixel::CMap& cmap, int colour
     Sixel::Encoder encoder (colourbar_offset + regrid[0].size(1)+regrid[1].size(0)+regrid[2].size(0),
         panel_y_dim, colourmaps);
 
-    draw_colourbar (encoder.viewport (0, 0, COLOURBAR_WIDTH), cmap);
+    if (colorbar) draw_colourbar (encoder.viewport (0, 0, COLOURBAR_WIDTH), cmap);
 
 
     int x_pos = colourbar_offset;
@@ -538,7 +542,7 @@ std::string display_image (ImageType& image, const Sixel::CMap& cmap, int colour
     const int y_dim = regrid.size (y_axis);
 
     Sixel::Encoder encoder (colourbar_offset+x_dim, y_dim, colourmaps);
-    draw_colourbar (encoder.viewport (0, 0, COLOURBAR_WIDTH), cmap);
+    if (colorbar) draw_colourbar (encoder.viewport (0, 0, COLOURBAR_WIDTH), cmap);
 
     auto view = encoder.viewport(colourbar_offset, 0);
     display_slice (image, regrid, view, cmap);
@@ -580,23 +584,26 @@ std::string display (ImageType& image, Sixel::ColourMaps& colourmaps)
 
     if (!cmap.scaling_set())
       autoscale (image, cmap);
-
-    out += ClearLine;
-    if (arrow_mode == ARROW_COLOUR)
-      out += TextForegroundYellow;
-    out += str(cmap.max(),4) + TextReset + move_down(1) + position_cursor_at_col (2);
+    if (show_text) {
+      out += ClearLine;
+      if (arrow_mode == ARROW_COLOUR)
+        out += TextForegroundYellow;
+      out += str(cmap.max(),4) + TextReset + move_down(1) + position_cursor_at_col (2);
+    }
 
     out += display_image (image, cmap, 2*COLOURBAR_WIDTH) + CarriageReturn + ClearLine;
 
-    if (arrow_mode == ARROW_COLOUR)
-      out += TextForegroundYellow;
-    out += str(cmap.min(), 4) + TextReset + move_down(1) + CarriageReturn;
+    if (show_text) {
+      if (arrow_mode == ARROW_COLOUR)
+        out += TextForegroundYellow;
+      out += str(cmap.min(), 4) + TextReset + move_down(1) + CarriageReturn;
+    }
   }
 
 
-  out += show_focus(image);
+  if (show_text) out += show_focus(image);
 
-  if (orthoview) {
+  if (interactive and orthoview and show_text) {
     out += " | active: ";
     switch (slice_axis) {
       case (0): out += std::string (TextUnderscore) + "s" + TextReset + "agittal"; break;
@@ -606,7 +613,7 @@ std::string display (ImageType& image, Sixel::ColourMaps& colourmaps)
     };
   }
 
-  if (interactive)
+  if (interactive and show_text)
     out += std::string(" | help: ") + TextUnderscore + "?" + TextReset;
   if (do_plot)
     out += plot (image, plot_axis);
@@ -643,6 +650,7 @@ void show_help ()
     + key ("a / s / c", "axial / sagittal / coronal projection")
     + key ("o", "toggle orthoview")
     + key ("m", "toggle image display")
+    + key ("t", "toggle text overlay")
     + key ("v", "choose volume dimension")
     + key ("- / +", "zoom out / in")
     + key ("x / <space>", "toggle arrow key crosshairs control")
@@ -741,7 +749,6 @@ class CallBack : public EventLoop::CallBack
         if (need_update) {
           need_update = false;
           std::cout << CursorHome << display (image, colourmaps);
-          //std::cout << "UPDATE ";
           std::cout.flush();
         }
         return true;;
@@ -826,6 +833,7 @@ class CallBack : public EventLoop::CallBack
         case 's': slice_axis = 0; if (!orthoview) std::cout << ClearScreen; break;
         case 'c': slice_axis = 1; if (!orthoview) std::cout << ClearScreen; break;
         case 'o': orthoview = !orthoview; std::cout << ClearScreen; break;
+        case 't': show_text = colorbar = !show_text; std::cout << ClearScreen; break;
         case 'm': show_image = !show_image; std::cout << ClearScreen; break;
         case 'r': focus[x_axis] = std::round (image.size(x_axis)/2); focus[x_axis] = std::round (image.size(x_axis)/2);
                   focus[slice_axis] = std::round (image.size(slice_axis)/2); break;
@@ -943,6 +951,8 @@ void run ()
     throw Exception ("zoom value needs to be positive");
   INFO("zoom: " + str(zoom));
   zoom /= std::min (std::min (image.spacing(0), image.spacing(1)), image.spacing(2));
+
+  colorbar = show_text = get_option_value ("text", true);
 
 #ifndef MRTRIX_WINDOWS
   //CONF option: MRPeekInteractive
