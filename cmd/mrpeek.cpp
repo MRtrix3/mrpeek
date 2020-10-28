@@ -123,6 +123,10 @@ void usage ()
 
   + Option ("text",
             "optionally omit text output to show only the sixel image")
+  +   Argument ("yesno").type_bool()
+
+  + Option ("image",
+            "render the main image. Default: true")
   +   Argument ("yesno").type_bool();
 }
 
@@ -430,7 +434,7 @@ std::string plot (ImageType& image, int plot_axis)
     assert(y < y_dim);
     assert(y >= 0);
 
-    if ((plot_axis < 3 && index == focus[plot_axis]) || (plot_axis > 2 && index == current_index)) {
+    if (crosshair && ((plot_axis < 3 && index == focus[plot_axis]) || (plot_axis > 2 && index == current_index))) {
       // focus position: draw line
       for (int r = 0; r < y_offset; ++r)
         canvas (x_offset+x, r) = CROSSHAIR_COLOUR;
@@ -953,6 +957,7 @@ void run ()
   zoom /= std::min (std::min (image.spacing(0), image.spacing(1)), image.spacing(2));
 
   colorbar = show_text = get_option_value ("text", true);
+  show_image = get_option_value ("image", true);
 
 #ifndef MRTRIX_WINDOWS
   //CONF option: MRPeekInteractive
