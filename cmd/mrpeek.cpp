@@ -959,16 +959,18 @@ void run ()
   colorbar = show_text = !get_options ("notext").size();
   show_image = !get_options ("noimage").size();
 
-#ifndef MRTRIX_WINDOWS
-  //CONF option: MRPeekInteractive
-  if (!interactive or get_options("batch").size()) {
-#endif
+#ifdef MRTRIX_WINDOWS
+  interactive = false;
+  std::cout << display (image, colourmaps) << "\n";
+#else
+  interactive = isatty (STDOUT_FILENO);
+  if (get_options ("batch").size())
     interactive = false;
+
+  if (!interactive) {
     std::cout << display (image, colourmaps) << "\n";
     return;
-#ifndef MRTRIX_WINDOWS
   }
-
 
   try {
     // start loop
