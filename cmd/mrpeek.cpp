@@ -79,10 +79,6 @@ void usage ()
   + Option ("axial",
             "view axial projection only. Default: orthoview")
 
-  + Option ("slice",
-            "select slice to display")
-  +   Argument ("number").type_integer(0)
-
   + Option ("plot",
             "specify plot dimension: "
             "0: L/R (sagittal); 1: A/P (coronal); 2 I/S (axial); 3 volumes... ")
@@ -107,10 +103,12 @@ void usage ()
             ". Default is " + colourmap_choices_std[0] + ".")
   +   Argument ("name").type_choice (colourmap_choices_cstr.data())
 
-  + Option ("crosshairs",
-            "draw crosshairs at specified position. Set to negative position to hide.")
-  +   Argument ("x").type_integer()
-  +   Argument ("y").type_integer()
+  + Option ("focus",
+            "set focus (crosshairs) at specified position, as a comma-separated "
+            "list of values. Use empty entries to leave as default (e.g. '-focus ,,100' "
+            "to place the focus on slice 100 along the z-axis, or '-focus ,,,4' to "
+            "select volume 4).")
+  +   Argument ("pos").type_sequence_float()
 
   + Option ("levels",
             "number of intensity levels in the colourmap. Default is 32.")
@@ -122,6 +120,9 @@ void usage ()
 
   + Option ("notext",
             "omit text output to show only the sixel image")
+
+  + Option ("nocrosshairs",
+            "do not render crosshairs at the focus")
 
   + Option ("noimage",
             "do not render the main image");
@@ -903,13 +904,9 @@ void run ()
   }
   orthoview = psum == 0;
   vol_axis = image.ndim() > 3 ? 3 : -1;
-  focus[slice_axis] = get_option_value ("slice", image.size(slice_axis)/2);
   set_axes();
-  focus[x_axis] = std::round (image.size(x_axis)/2);
-  focus[y_axis] = std::round (image.size(y_axis)/2);
-
-  if (focus[slice_axis] >= image.size(slice_axis))
-    throw Exception("slice " + str(focus[slice_axis]) + " exceeds image size (" + str(image.size(slice_axis)) + ") in axis " + str(slice_axis));
+  for (int a = 0; a < 3; ++a)
+    focus[a] = std::round (image.size(a)/2.0);
 
   int colourmap_ID = get_option_value ("colourmap", 0);
 
@@ -937,17 +934,25 @@ void run ()
     pmax = opt[0][1];
   }
 
-  opt = get_options ("crosshairs");
+  opt = get_options ("focus");
   if (opt.size()) {
-    int x = opt[0][0];
-    int y = opt[0][1];
-    if (x<0 || y<0) {
-      crosshair = false;
-    } else {
-      focus[x_axis] = opt[0][0];
-      focus[y_axis] = opt[0][1];
+    vector<default_type> p = opt[0][0];
+    if (p.size() > image.ndim())
+      throw Exception ("number of indices passed to -focus option exceeds image dimensions");
+    for (unsigned int n = 0; n < p.size(); ++n) {
+      if (std::isfinite (p[n])) {
+        if (p[n] < 0 || p[n] > image.size(n)-1)
+          throw Exception ("position passed to -focus option is out of bounds for axis "+str(n));
+        if (n < 3)
+          focus[n] = p[n];
+        else
+          image.index(n) = p[n];
+      }
     }
   }
+
+  if (get_options ("nocrosshairs").size())
+    crosshair = false;
 
   //CONF option: MRPeekScaleImage
   zoom = get_option_value ("zoom", MR::File::Config::get_float ("MRPeekZoom", zoom));
