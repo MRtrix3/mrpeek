@@ -67,22 +67,21 @@ void usage ()
 
   OPTIONS
 #ifndef MRTRIX_WINDOWS
-  + Option ("interactive",
-            "interactive mode. Default is true.")
-  +   Argument ("yesno").type_bool()
+  + Option ("batch",
+            "disables interactive mode")
 #endif
-  + Option ("axis",
-            "specify projection of slice, as an integer representing the slice normal: "
-            "0: L/R (sagittal); 1: A/P (coronal); 2 I/S (axial). Default is 2 (axial). ")
-  +   Argument ("index").type_integer (0)
+  + Option ("sagittal",
+            "view sagittal projection only. Default: orthoview")
+
+  + Option ("coronal",
+            "view coronal projection only. Default: orthoview")
+
+  + Option ("axial",
+            "view axial projection only. Default: orthoview")
 
   + Option ("slice",
             "select slice to display")
   +   Argument ("number").type_integer(0)
-
-  + Option ("orthoview",
-            "display three orthogonal or a single plane. Default is true.")
-  +   Argument ("yesno").type_bool()
 
   + Option ("plot",
             "specify plot dimension: "
@@ -121,13 +120,11 @@ void usage ()
             "scale the image size by the supplied factor")
     + Argument ("factor").type_float()
 
-  + Option ("text",
-            "optionally omit text output to show only the sixel image")
-  +   Argument ("yesno").type_bool()
+  + Option ("notext",
+            "omit text output to show only the sixel image")
 
-  + Option ("image",
-            "render the main image. Default: true")
-  +   Argument ("yesno").type_bool();
+  + Option ("noimage",
+            "do not render the main image");
 }
 
 
@@ -898,7 +895,13 @@ void run ()
 {
   auto image = Image<value_type>::open (argument[0]);
 
-  slice_axis = get_option_value ("axis", slice_axis);
+  size_t projection_axes[3] = {get_options("sagittal").size(), get_options("coronal").size(), get_options("axial").size()};
+  size_t psum = 0;
+  for (int i = 0; i < 3; ++i) {
+    if (projection_axes[i]) { ++psum; slice_axis = i; }
+    if (psum > 1) throw Exception("Projection axes options are mutually exclusive.");
+  }
+  orthoview = psum == 0;
   vol_axis = image.ndim() > 3 ? 3 : -1;
   focus[slice_axis] = get_option_value ("slice", image.size(slice_axis)/2);
   set_axes();
@@ -946,9 +949,6 @@ void run ()
     }
   }
 
-  //CONF option: MRPeekOrthoView
-  orthoview = get_option_value ("orthoview", File::Config::get_bool ("MRPeekOrthoView", orthoview));
-
   //CONF option: MRPeekScaleImage
   zoom = get_option_value ("zoom", MR::File::Config::get_float ("MRPeekZoom", zoom));
   if (zoom <= 0)
@@ -956,12 +956,12 @@ void run ()
   INFO("zoom: " + str(zoom));
   zoom /= std::min (std::min (image.spacing(0), image.spacing(1)), image.spacing(2));
 
-  colorbar = show_text = get_option_value ("text", true);
-  show_image = get_option_value ("image", true);
+  colorbar = show_text = !get_options ("notext").size();
+  show_image = !get_options ("noimage").size();
 
 #ifndef MRTRIX_WINDOWS
   //CONF option: MRPeekInteractive
-  if (!interactive or !get_option_value ("interactive", File::Config::get_bool ("MRPeekInteractive", true))) {
+  if (!interactive or get_options("batch").size()) {
 #endif
     interactive = false;
     std::cout << display (image, colourmaps) << "\n";
