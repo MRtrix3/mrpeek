@@ -607,7 +607,7 @@ std::string display (ImageType& image, Sixel::ColourMaps& colourmaps)
 
   if (show_text) out += show_focus(image);
 
-  if (interactive and orthoview and show_text) {
+  if (interactive && orthoview && show_text) {
     out += " | active: ";
     switch (slice_axis) {
       case (0): out += std::string (TextUnderscore) + "s" + TextReset + "agittal"; break;
@@ -617,7 +617,7 @@ std::string display (ImageType& image, Sixel::ColourMaps& colourmaps)
     };
   }
 
-  if (interactive and show_text)
+  if (interactive && show_text)
     out += std::string(" | help: ") + TextUnderscore + "?" + TextReset;
   if (do_plot)
     out += plot (image, plot_axis);
