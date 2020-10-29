@@ -396,7 +396,7 @@ std::string plot (ImageType& image, int plot_axis)
   Sixel::Encoder encoder (x_dim, y_dim, plot_cmaps);
   auto canvas = encoder.viewport();
 
-  int last_x, last_y, delta_x;
+  int last_x, last_y;
   bool connect_dots = false;
   const int x_offset = pad, y_offset = y_dim-1-pad;
   // coordinate axes
@@ -435,21 +435,15 @@ std::string plot (ImageType& image, int plot_axis)
     // plot line segment
     if (connect_dots) {
       assert(x > last_x);
-      delta_x = x - last_x;
-      int yp = 0;
-      const int ydiff = y-last_y;
+      const int delta_x = x - last_x;
+      const int delta_y = y - last_y;
       for (int dx = 0; dx <= delta_x; ++dx) {
-        while (std::round (float(delta_x*yp)/float(ydiff)) == dx) {
-          canvas (x_offset + (last_x + dx), y_offset-(last_y+yp)) = STANDARD_COLOUR;
-          if (ydiff > 0) {
-            if (++yp > ydiff)
-              break;
-          }
-          else {
-            if (--yp < ydiff)
-              break;
-          }
-        }
+        int dy1 = (dx > 0 ) ? std::round (delta_y*(dx-0.5f)/float(delta_x)) : 0;
+        int dy2 = (dx < delta_x) ? std::round (delta_y*(dx+0.5f)/float(delta_x)) : delta_y;
+        if (dy1 > dy2)
+          std::swap (dy1, dy2);
+        for (int ypos = dy1; ypos <= dy2; ++ypos)
+          canvas (x_offset + last_x + dx, y_offset - (last_y + ypos)) = STANDARD_COLOUR;
       }
     }
 
