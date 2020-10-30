@@ -941,6 +941,7 @@ void run ()
       throw Exception ("number of indices passed to -focus option exceeds image dimensions");
     for (unsigned int n = 0; n < p.size(); ++n) {
       if (std::isfinite (p[n])) {
+        p[n] = Math::round<default_type>(p[n]);
         if (p[n] < 0 || p[n] > image.size(n)-1)
           throw Exception ("position passed to -focus option is out of bounds for axis "+str(n));
         if (n < 3)
