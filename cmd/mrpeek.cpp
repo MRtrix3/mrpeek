@@ -105,10 +105,10 @@ void usage ()
 
   + Option ("focus",
             "set focus (crosshairs) at specified position, as a comma-separated "
-            "list of values. Use empty entries to leave as default (e.g. '-focus ,,100' "
+            "list of integer-valued voxel indices. Use empty entries to leave as default (e.g. '-focus ,,100' "
             "to place the focus on slice 100 along the z-axis, or '-focus ,,,4' to "
             "select volume 4).")
-  +   Argument ("pos").type_sequence_float()
+  +   Argument ("pos").type_sequence_int()
 
   + Option ("levels",
             "number of intensity levels in the colourmap. Default is 32.")
@@ -936,7 +936,7 @@ void run ()
 
   opt = get_options ("focus");
   if (opt.size()) {
-    vector<default_type> p = opt[0][0];
+    vector<int> p = opt[0][0];
     if (p.size() > image.ndim())
       throw Exception ("number of indices passed to -focus option exceeds image dimensions");
     for (unsigned int n = 0; n < p.size(); ++n) {
