@@ -67,22 +67,17 @@ void usage ()
 
   OPTIONS
 #ifndef MRTRIX_WINDOWS
-  + Option ("interactive",
-            "interactive mode. Default is true.")
-  +   Argument ("yesno").type_bool()
+  + Option ("batch",
+            "disables interactive mode")
 #endif
-  + Option ("axis",
-            "specify projection of slice, as an integer representing the slice normal: "
-            "0: L/R (sagittal); 1: A/P (coronal); 2 I/S (axial). Default is 2 (axial). ")
-  +   Argument ("index").type_integer (0)
+  + Option ("sagittal",
+            "view sagittal projection only. Default: orthoview")
 
-  + Option ("slice",
-            "select slice to display")
-  +   Argument ("number").type_integer(0)
+  + Option ("coronal",
+            "view coronal projection only. Default: orthoview")
 
-  + Option ("orthoview",
-            "display three orthogonal or a single plane. Default is true.")
-  +   Argument ("yesno").type_bool()
+  + Option ("axial",
+            "view axial projection only. Default: orthoview")
 
   + Option ("plot",
             "specify plot dimension: "
@@ -108,10 +103,12 @@ void usage ()
             ". Default is " + colourmap_choices_std[0] + ".")
   +   Argument ("name").type_choice (colourmap_choices_cstr.data())
 
-  + Option ("crosshairs",
-            "draw crosshairs at specified position. Set to negative position to hide.")
-  +   Argument ("x").type_integer()
-  +   Argument ("y").type_integer()
+  + Option ("focus",
+            "set focus (crosshairs) at specified position, as a comma-separated "
+            "list of values. Use empty entries to leave as default (e.g. '-focus ,,100' "
+            "to place the focus on slice 100 along the z-axis, or '-focus ,,,4' to "
+            "select volume 4).")
+  +   Argument ("pos").type_sequence_float()
 
   + Option ("levels",
             "number of intensity levels in the colourmap. Default is 32.")
@@ -119,7 +116,16 @@ void usage ()
 
   + Option ("zoom",
             "scale the image size by the supplied factor")
-    + Argument ("factor").type_float();
+    + Argument ("factor").type_float()
+
+  + Option ("notext",
+            "omit text output to show only the sixel image")
+
+  + Option ("nocrosshairs",
+            "do not render crosshairs at the focus")
+
+  + Option ("noimage",
+            "do not render the main image");
 }
 
 
@@ -138,7 +144,7 @@ int levels = 32;
 int x_axis, y_axis, slice_axis = 2, plot_axis = slice_axis, vol_axis = -1;
 value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX, zoom = 1.0;
 bool crosshair = true, colorbar = true, orthoview = true, interactive = true;
-bool do_plot = false, show_image = true, interpolate = false;
+bool do_plot = false, show_image = true, interpolate = false, show_text = true;
 vector<int> focus (3, 0);  // relative to original image grid
 ArrowMode x_arrow_mode = ARROW_SLICEVOL, arrow_mode = x_arrow_mode;
 Sixel::ColourMaps colourmaps;
@@ -426,7 +432,7 @@ std::string plot (ImageType& image, int plot_axis)
     assert(y < y_dim);
     assert(y >= 0);
 
-    if ((plot_axis < 3 && index == focus[plot_axis]) || (plot_axis > 2 && index == current_index)) {
+    if (crosshair && ((plot_axis < 3 && index == focus[plot_axis]) || (plot_axis > 2 && index == current_index))) {
       // focus position: draw line
       for (int r = 0; r < y_offset; ++r)
         canvas (x_offset+x, r) = CROSSHAIR_COLOUR;
@@ -461,9 +467,9 @@ std::string plot (ImageType& image, int plot_axis)
 
   // encode buffer and print out:
   std::string out = move_down (2);
-  out += CarriageReturn + str(vmax) + move_down(1) + CarriageReturn
-    + encoder.write()
-    + ClearLine + str(vmin)
+  if (show_text) out += CarriageReturn + str(vmax) + move_down(1) + CarriageReturn;
+  out += encoder.write();
+  if (show_text) out += ClearLine + str(vmin)
     + move_down(1) + CarriageReturn + ClearLine
     + "plot axis: " + str(plot_axis) + " | x range: [ 0 " + str(plotslice.size() - 1) + " ]";
 
@@ -494,7 +500,7 @@ std::string display_image (ImageType& image, const Sixel::CMap& cmap, int colour
     Sixel::Encoder encoder (colourbar_offset + regrid[0].size(1)+regrid[1].size(0)+regrid[2].size(0),
         panel_y_dim, colourmaps);
 
-    draw_colourbar (encoder.viewport (0, 0, COLOURBAR_WIDTH), cmap);
+    if (colorbar) draw_colourbar (encoder.viewport (0, 0, COLOURBAR_WIDTH), cmap);
 
 
     int x_pos = colourbar_offset;
@@ -532,7 +538,7 @@ std::string display_image (ImageType& image, const Sixel::CMap& cmap, int colour
     const int y_dim = regrid.size (y_axis);
 
     Sixel::Encoder encoder (colourbar_offset+x_dim, y_dim, colourmaps);
-    draw_colourbar (encoder.viewport (0, 0, COLOURBAR_WIDTH), cmap);
+    if (colorbar) draw_colourbar (encoder.viewport (0, 0, COLOURBAR_WIDTH), cmap);
 
     auto view = encoder.viewport(colourbar_offset, 0);
     display_slice (image, regrid, view, cmap);
@@ -574,23 +580,26 @@ std::string display (ImageType& image, Sixel::ColourMaps& colourmaps)
 
     if (!cmap.scaling_set())
       autoscale (image, cmap);
-
-    out += ClearLine;
-    if (arrow_mode == ARROW_COLOUR)
-      out += TextForegroundYellow;
-    out += str(cmap.max(),4) + TextReset + move_down(1) + position_cursor_at_col (2);
+    if (show_text) {
+      out += ClearLine;
+      if (arrow_mode == ARROW_COLOUR)
+        out += TextForegroundYellow;
+      out += str(cmap.max(),4) + TextReset + move_down(1) + position_cursor_at_col (2);
+    }
 
     out += display_image (image, cmap, 2*COLOURBAR_WIDTH) + CarriageReturn + ClearLine;
 
-    if (arrow_mode == ARROW_COLOUR)
-      out += TextForegroundYellow;
-    out += str(cmap.min(), 4) + TextReset + move_down(1) + CarriageReturn;
+    if (show_text) {
+      if (arrow_mode == ARROW_COLOUR)
+        out += TextForegroundYellow;
+      out += str(cmap.min(), 4) + TextReset + move_down(1) + CarriageReturn;
+    }
   }
 
 
-  out += show_focus(image);
+  if (show_text) out += show_focus(image);
 
-  if (orthoview) {
+  if (interactive && orthoview && show_text) {
     out += " | active: ";
     switch (slice_axis) {
       case (0): out += std::string (TextUnderscore) + "s" + TextReset + "agittal"; break;
@@ -600,7 +609,7 @@ std::string display (ImageType& image, Sixel::ColourMaps& colourmaps)
     };
   }
 
-  if (interactive)
+  if (interactive && show_text)
     out += std::string(" | help: ") + TextUnderscore + "?" + TextReset;
   if (do_plot)
     out += plot (image, plot_axis);
@@ -637,6 +646,7 @@ void show_help ()
     + key ("a / s / c", "axial / sagittal / coronal projection")
     + key ("o", "toggle orthoview")
     + key ("m", "toggle image display")
+    + key ("t", "toggle text overlay")
     + key ("v", "choose volume dimension")
     + key ("- / +", "zoom out / in")
     + key ("x / <space>", "toggle arrow key crosshairs control")
@@ -735,7 +745,6 @@ class CallBack : public EventLoop::CallBack
         if (need_update) {
           need_update = false;
           std::cout << CursorHome << display (image, colourmaps);
-          //std::cout << "UPDATE ";
           std::cout.flush();
         }
         return true;;
@@ -820,6 +829,7 @@ class CallBack : public EventLoop::CallBack
         case 's': slice_axis = 0; if (!orthoview) std::cout << ClearScreen; break;
         case 'c': slice_axis = 1; if (!orthoview) std::cout << ClearScreen; break;
         case 'o': orthoview = !orthoview; std::cout << ClearScreen; break;
+        case 't': show_text = colorbar = !show_text; std::cout << ClearScreen; break;
         case 'm': show_image = !show_image; std::cout << ClearScreen; break;
         case 'r': focus[x_axis] = std::round (image.size(x_axis)/2); focus[x_axis] = std::round (image.size(x_axis)/2);
                   focus[slice_axis] = std::round (image.size(slice_axis)/2); break;
@@ -880,15 +890,17 @@ void run ()
 {
   auto image = Image<value_type>::open (argument[0]);
 
-  slice_axis = get_option_value ("axis", slice_axis);
+  size_t projection_axes[3] = {get_options("sagittal").size(), get_options("coronal").size(), get_options("axial").size()};
+  size_t psum = 0;
+  for (int i = 0; i < 3; ++i) {
+    if (projection_axes[i]) { ++psum; slice_axis = i; }
+    if (psum > 1) throw Exception("Projection axes options are mutually exclusive.");
+  }
+  orthoview = psum == 0;
   vol_axis = image.ndim() > 3 ? 3 : -1;
-  focus[slice_axis] = get_option_value ("slice", image.size(slice_axis)/2);
   set_axes();
-  focus[x_axis] = std::round (image.size(x_axis)/2);
-  focus[y_axis] = std::round (image.size(y_axis)/2);
-
-  if (focus[slice_axis] >= image.size(slice_axis))
-    throw Exception("slice " + str(focus[slice_axis]) + " exceeds image size (" + str(image.size(slice_axis)) + ") in axis " + str(slice_axis));
+  for (int a = 0; a < 3; ++a)
+    focus[a] = std::round (image.size(a)/2.0);
 
   int colourmap_ID = get_option_value ("colourmap", 0);
 
@@ -916,20 +928,26 @@ void run ()
     pmax = opt[0][1];
   }
 
-  opt = get_options ("crosshairs");
+  opt = get_options ("focus");
   if (opt.size()) {
-    int x = opt[0][0];
-    int y = opt[0][1];
-    if (x<0 || y<0) {
-      crosshair = false;
-    } else {
-      focus[x_axis] = opt[0][0];
-      focus[y_axis] = opt[0][1];
+    vector<default_type> p = opt[0][0];
+    if (p.size() > image.ndim())
+      throw Exception ("number of indices passed to -focus option exceeds image dimensions");
+    for (unsigned int n = 0; n < p.size(); ++n) {
+      if (std::isfinite (p[n])) {
+        p[n] = Math::round<default_type>(p[n]);
+        if (p[n] < 0 || p[n] > image.size(n)-1)
+          throw Exception ("position passed to -focus option is out of bounds for axis "+str(n));
+        if (n < 3)
+          focus[n] = p[n];
+        else
+          image.index(n) = p[n];
+      }
     }
   }
 
-  //CONF option: MRPeekOrthoView
-  orthoview = get_option_value ("orthoview", File::Config::get_bool ("MRPeekOrthoView", orthoview));
+  if (get_options ("nocrosshairs").size())
+    crosshair = false;
 
   //CONF option: MRPeekScaleImage
   zoom = get_option_value ("zoom", MR::File::Config::get_float ("MRPeekZoom", zoom));
@@ -938,16 +956,21 @@ void run ()
   INFO("zoom: " + str(zoom));
   zoom /= std::min (std::min (image.spacing(0), image.spacing(1)), image.spacing(2));
 
-#ifndef MRTRIX_WINDOWS
-  //CONF option: MRPeekInteractive
-  if (!interactive or !get_option_value ("interactive", File::Config::get_bool ("MRPeekInteractive", true))) {
-#endif
+  colorbar = show_text = !get_options ("notext").size();
+  show_image = !get_options ("noimage").size();
+
+#ifdef MRTRIX_WINDOWS
+  interactive = false;
+  std::cout << display (image, colourmaps) << "\n";
+#else
+  interactive = isatty (STDOUT_FILENO);
+  if (get_options ("batch").size())
     interactive = false;
+
+  if (!interactive) {
     std::cout << display (image, colourmaps) << "\n";
     return;
-#ifndef MRTRIX_WINDOWS
   }
-
 
   try {
     // start loop
