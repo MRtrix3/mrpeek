@@ -25,6 +25,14 @@ using namespace VT;
 
 vector<std::string> colourmap_choices_std;
 vector<const char*> colourmap_choices_cstr;
+const char* complex_choices [] = {
+  "real",
+  "imag",
+  "abs",
+  "arg",
+  "colour",
+  nullptr
+};
 
 enum ArrowMode { ARROW_SLICEVOL, ARROW_COLOUR, ARROW_CROSSHAIR, N_ARROW_MODES };
 
@@ -40,6 +48,7 @@ void usage ()
     ++entry;
   } while (entry->name && !entry->special && !entry->is_colour);
   colourmap_choices_cstr.reserve (colourmap_choices_std.size() + 1);
+
   for (const auto& s : colourmap_choices_std)
     colourmap_choices_cstr.push_back (s.c_str());
   colourmap_choices_cstr.push_back (nullptr);
@@ -103,6 +112,11 @@ void usage ()
             ". Default is " + colourmap_choices_std[0] + ".")
   +   Argument ("name").type_choice (colourmap_choices_cstr.data())
 
+  + Option ("complex",
+            "for complex numbers, select which aspect to show. Choices are: " + join (complex_choices, ",") +
+            ". Default is " + complex_choices[0] + ".")
+  +    Argument ("type").type_choice (complex_choices)
+
   + Option ("focus",
             "set focus (crosshairs) at specified position, as a comma-separated "
             "list of values. Use empty entries to leave as default (e.g. '-focus ,,100' "
@@ -129,8 +143,9 @@ void usage ()
 }
 
 
-using value_type = cfloat;
-using ImageType = Image<value_type>;
+using value_type = float;
+using cpx_value_type = cfloat;
+using ImageType = Image<cpx_value_type>;
 using Reslicer = Adapter::Reslice<Interp::Nearest, ImageType>;
 using LinearReslicer = Adapter::Reslice<Interp::Linear, ImageType>;
 using CubicReslicer = Adapter::Reslice<Interp::Cubic, ImageType>;
@@ -142,15 +157,27 @@ using CubicReslicer = Adapter::Reslice<Interp::Cubic, ImageType>;
 // These will need to be moved into a struct/class eventually...
 int levels = 32;
 int x_axis, y_axis, slice_axis = 2, plot_axis = slice_axis, vol_axis = -1;
+int display_type = 0;
 default_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX, zoom = 1.0;
 bool crosshair = true, colorbar = true, orthoview = true, interactive = true;
 bool do_plot = false, show_image = true, interpolate = false, show_text = true;
-bool show_complex = false;
 vector<int> focus (3, 0);  // relative to original image grid
 ArrowMode x_arrow_mode = ARROW_SLICEVOL, arrow_mode = x_arrow_mode;
 Sixel::ColourMaps colourmaps;
 Sixel::ColourMaps plot_cmaps;
 
+
+
+inline value_type get_scalar (const cpx_value_type val) {
+  switch (display_type) {
+    case 0: return std::real (val);
+    case 1: return std::imag (val);
+    case 2: return std::abs (val);
+    case 3: return std::arg (val);
+    case 4: return std::abs (val);
+  }
+  return 0.0;
+}
 
 inline std::string move_down (int n) {
   if (interactive)
@@ -237,7 +264,15 @@ inline std::string show_focus (ImageType& image)
   }
   out += "] ";
 
-  out += "| value: " + str(image.value());
+  out += "| value [";
+  switch (display_type) {
+    case 0: out += "real"; break;
+    case 1: out += "imag"; break;
+    case 2: out += "abs"; break;
+    case 3: out += "arg"; break;
+    case 4: out += "colour"; break;
+  }
+  out+= "]: " + str(image.value());
 
   return out;
 }
@@ -282,7 +317,7 @@ void autoscale (ImageType& image, Sixel::CMap& cmap)
   std::cerr.flush();
   for (auto l = Loop (vector<size_t>({ size_t(x_axis), size_t(y_axis) }))(image_regrid); l; ++l) {
     //std::cerr << "[" << image_regrid.index(0) << " " << image_regrid.index(1) << " " << image_regrid.index(2) << "] ";
-    currentslice[k++] = show_complex ? std::abs (image_regrid.value()) : std::real (image_regrid.value());
+    currentslice[k++] = get_scalar (image_regrid.value());
   }
 
   default_type vmin = percentile(currentslice, pmin);
@@ -334,7 +369,7 @@ void render_slice (InterpType& regrid, const Sixel::ViewPort& view, const Sixel:
     regrid.index(y_axis) = y_dim-1-y;
     for (int x = 0; x < x_dim; ++x) {
       regrid.index(x_axis) = x_dim-1-x;
-      view(x,y) = cmap (regrid.value());
+      view(x,y) = cmap (get_scalar (regrid.value()));
     }
   }
 }
@@ -386,7 +421,7 @@ std::string plot (ImageType& image, int plot_axis)
   std::vector<default_type> plotslice_finite (image.size(plot_axis));
   size_t k = 0;
   for (auto l = Loop (plot_axis)(image); l; ++l) {
-    plotslice[k] = show_complex ? std::abs (value_type (image.value())) : std::real (value_type (image.value()));
+    plotslice[k] = get_scalar (image.value());
     plotslice_finite[k] = plotslice[k];
     ++k;
   }
@@ -655,6 +690,7 @@ void show_help ()
     + key ("f", "show / hide crosshairs")
     + key ("r", "reset focus")
     + key ("i", "toggle between nearest (default) and linear interpolation")
+    + key ("z", "toggle between real, imag, abs & arg display for complex numbers")
     + key ("left mouse & drag", "move focus")
     + key ("right mouse & drag", "adjust brightness / contrast")
     + key ("Esc", "reset brightness / contrast")
@@ -835,6 +871,7 @@ class CallBack : public EventLoop::CallBack
         case 'r': focus[x_axis] = std::round (image.size(x_axis)/2); focus[x_axis] = std::round (image.size(x_axis)/2);
                   focus[slice_axis] = std::round (image.size(slice_axis)/2); break;
         case 'i': interpolate = !interpolate; break;
+        case 'z': display_type++; if (display_type>3) display_type = 0; break;
         case '+': zoom *= 1.1; std::cout << ClearScreen; break;
         case '-': zoom /= 1.1; std::cout << ClearScreen; break;
         case ' ':
@@ -889,7 +926,7 @@ class CallBack : public EventLoop::CallBack
 
 void run ()
 {
-  auto image = Image<value_type>::open (argument[0]);
+  auto image = ImageType::open (argument[0]);
 
   size_t projection_axes[3] = {get_options("sagittal").size(), get_options("coronal").size(), get_options("axial").size()};
   size_t psum = 0;
@@ -904,6 +941,8 @@ void run ()
     focus[a] = std::round (image.size(a)/2.0);
 
   int colourmap_ID = get_option_value ("colourmap", 0);
+
+  display_type = get_option_value ("complex", 0);
 
   do_plot = get_options ("plot").size();
   plot_axis = get_option_value ("plot", plot_axis);

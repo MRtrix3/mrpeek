@@ -42,12 +42,6 @@ namespace MR {
           return index + std::min (std::max (val,0), ncolours);
         }
 
-        int operator() (cfloat value) const {
-          int phase = std::round (ncolours * (std::arg (value)/(2.0*M_PI) + 0.5));
-          int val = std::round (_offset + _scale * std::abs (value));
-          return index + std::min (std::max (val,0), ncolours);
-        }
-
         // set offset * scale parameters to adjust brightness / contrast:
         bool scaling_set () const { return std::isfinite (_offset) && std::isfinite (_scale); }
         void invalidate_scaling () { _offset = _scale = NaN; }
