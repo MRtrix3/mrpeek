@@ -129,7 +129,7 @@ void usage ()
 }
 
 
-using value_type = float;
+using value_type = cfloat;
 using ImageType = Image<value_type>;
 using Reslicer = Adapter::Reslice<Interp::Nearest, ImageType>;
 using LinearReslicer = Adapter::Reslice<Interp::Linear, ImageType>;
@@ -142,9 +142,10 @@ using CubicReslicer = Adapter::Reslice<Interp::Cubic, ImageType>;
 // These will need to be moved into a struct/class eventually...
 int levels = 32;
 int x_axis, y_axis, slice_axis = 2, plot_axis = slice_axis, vol_axis = -1;
-value_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX, zoom = 1.0;
+default_type pmin = DEFAULT_PMIN, pmax = DEFAULT_PMAX, zoom = 1.0;
 bool crosshair = true, colorbar = true, orthoview = true, interactive = true;
 bool do_plot = false, show_image = true, interpolate = false, show_text = true;
+bool show_complex = false;
 vector<int> focus (3, 0);  // relative to original image grid
 ArrowMode x_arrow_mode = ARROW_SLICEVOL, arrow_mode = x_arrow_mode;
 Sixel::ColourMaps colourmaps;
@@ -164,7 +165,7 @@ inline std::string move_down (int n) {
 // calculate percentile of a list of numbers
 // implementation based on `mrthreshold` - can be merged with Math::median in due course
 template <class Container>
-value_type percentile (Container& data, default_type percentile)
+default_type percentile (Container& data, default_type percentile)
 {
   // ignore nan
   auto isnotfinite = [](typename Container::value_type val) { return !std::isfinite(val); };
@@ -249,7 +250,7 @@ inline Reslicer get_regridder (ImageType& image, int with_slice_axis)
   Header header_target (image);
   default_type original_extent;
   for (int d = 0; d < 3; ++d) {
-    const float new_voxel_size = (d == with_slice_axis) ? image.spacing(d) : 1.0f/zoom;
+    const default_type new_voxel_size = (d == with_slice_axis) ? image.spacing(d) : 1.0f/zoom;
 
     original_extent = image.size(d) * image.spacing(d);
 
@@ -276,16 +277,16 @@ void autoscale (ImageType& image, Sixel::CMap& cmap)
   const int y_dim = image_regrid.size(y_axis);
   image_regrid.index(slice_axis) = focus[slice_axis];
 
-  vector<value_type> currentslice (x_dim*y_dim);
+  vector<default_type> currentslice (x_dim*y_dim);
   size_t k = 0;
   std::cerr.flush();
   for (auto l = Loop (vector<size_t>({ size_t(x_axis), size_t(y_axis) }))(image_regrid); l; ++l) {
     //std::cerr << "[" << image_regrid.index(0) << " " << image_regrid.index(1) << " " << image_regrid.index(2) << "] ";
-    currentslice[k++] = image_regrid.value();
+    currentslice[k++] = show_complex ? std::abs (image_regrid.value()) : std::real (image_regrid.value());
   }
 
-  value_type vmin = percentile(currentslice, pmin);
-  value_type vmax = percentile(currentslice, pmax);
+  default_type vmin = percentile(currentslice, pmin);
+  default_type vmax = percentile(currentslice, pmax);
   cmap.set_scaling_min_max (vmin, vmax);
   INFO("reset intensity range to " + str(vmin) + " - " +str(vmax));
 }
@@ -381,16 +382,16 @@ std::string plot (ImageType& image, int plot_axis)
   ssize_t current_index = image.index (plot_axis);
   image.index(plot_axis) = 0;
 
-  std::vector<value_type> plotslice (image.size(plot_axis));
-  std::vector<value_type> plotslice_finite (image.size(plot_axis));
+  std::vector<default_type> plotslice (image.size(plot_axis));
+  std::vector<default_type> plotslice_finite (image.size(plot_axis));
   size_t k = 0;
   for (auto l = Loop (plot_axis)(image); l; ++l) {
-    plotslice[k] = image.value();
+    plotslice[k] = show_complex ? std::abs (value_type (image.value())) : std::real (value_type (image.value()));
     plotslice_finite[k] = plotslice[k];
     ++k;
   }
-  value_type vmin = percentile(plotslice_finite, 0); // non-finite values removed
-  value_type vmax = percentile(plotslice_finite, 100);
+  default_type vmin = percentile(plotslice_finite, 0); // non-finite values removed
+  default_type vmax = percentile(plotslice_finite, 100);
   if (vmax == vmin) {
     vmin -= 1e-3;
     vmax += 1e-3;
