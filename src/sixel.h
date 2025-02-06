@@ -17,7 +17,7 @@ namespace MR {
     constexpr float BrightnessIncrement = 0.01f;
     constexpr float ContrastIncrement = 0.03f;
 
-    constexpr const char* SixelStart = "\033Pq$";
+    constexpr const char* SixelStart = "\033P9;1q$";
     constexpr const char* SixelStop = "\033\\";
 
     void init();
