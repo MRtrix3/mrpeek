@@ -31,6 +31,7 @@ namespace MR {
     constexpr const char* LeftRightArrow = "\u2195";
 
     constexpr const char* RequestCursorPosition = "\x1b[6n";
+    constexpr const char* QueryIsSixelSupported = "\x1b[c";
 
     constexpr char Escape = '\x1b';
     constexpr char CtrlC = '\x03';
