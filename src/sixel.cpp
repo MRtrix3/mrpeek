@@ -99,8 +99,45 @@ namespace MR {
 
 
 
+    void check_sixel_support ()
+    {
+      struct CallBack : public VT::EventLoop::CallBack
+      {
+        bool operator() (int event, const std::vector<int>& param) override {
+          if (!event) {
+            std::cout << VT::QueryIsSixelSupported;
+            std::cout.flush();
+            return true;
+          }
+          if (event == (VT::CSImask | 'c')) {
+            supported = false;
+            for (auto c : param) {
+              if (c == 4) {
+                supported = true;
+                break;
+              }
+            }
+            return false;
+          }
+          return event != 'q';
+        }
+        bool supported;
+      } callback;
+
+      VT::EventLoop (callback).run();
+      if (!callback.supported)
+        throw Exception ("sixel format is not supported!\n\n"
+            "  For correct operation, you need to use a terminal emulator with built-in\n"
+            "  support for the sixel protocol.\n\n"
+            "  See https://www.arewesixelyet.com/ for a list of sixel-capable terminals.\n");
+    }
+
+
+
     void init()
     {
+      check_sixel_support();
+
       int row, col;
       std::cout << VT::CursorHome << SixelStart << "#0;2;0;0;0$#0?!200-" << SixelStop;
 

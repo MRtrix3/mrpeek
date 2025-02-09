@@ -140,7 +140,7 @@ namespace MR {
         c = next();
 
       std::string buf;
-      for (int n = 0; n < 16; ++n) {
+      for (int n = 0; n < 256; ++n) {
         if (c >= '0' && c <= '9')
           buf.push_back (c);
         else if (c == ';') {

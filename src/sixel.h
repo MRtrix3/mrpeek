@@ -20,6 +20,7 @@ namespace MR {
     constexpr const char* SixelStart = "\033P9;1q$";
     constexpr const char* SixelStop = "\033\\";
 
+    void check_sixel_support ();
     void init();
 
 
