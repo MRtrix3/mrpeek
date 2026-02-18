@@ -57,7 +57,7 @@ namespace MR {
       tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 #endif
 
-      std::cout << CursorOff << MouseTrackingOn;
+      std::cout << AlternateScreen << CursorOff << MouseTrackingOn;
       std::cout.flush();
     }
 
@@ -67,7 +67,7 @@ namespace MR {
 #ifndef MRTRIX_WINDOWS
       tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
 #endif
-      std::cout << CursorOn << MouseTrackingOff << "\n";
+      std::cout << MainScreen << CursorOn << MouseTrackingOff;
       std::cout.flush();
     }
 

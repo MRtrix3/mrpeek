@@ -11,6 +11,8 @@ namespace MR {
   namespace VT {
 
     constexpr const char* ClearScreen = "\x1b[2J";
+    constexpr const char* AlternateScreen = "\x1b[?1049h";
+    constexpr const char* MainScreen = "\x1b[?1049l";
     constexpr const char* SaveScreen = "\x1b[?47h";
     constexpr const char* RestoreScreen = "\x1b[?47l";
     constexpr const char* CursorHome = "\x1b[H";
