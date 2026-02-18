@@ -752,7 +752,7 @@ class CallBack : public EventLoop::CallBack
 
       need_update = true;
 
-      if (event == 'q')
+      if (event == 'q' || event == VT::CtrlC)
         return false;
 
       if (event == MouseEvent) {
