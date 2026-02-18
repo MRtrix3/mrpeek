@@ -12,6 +12,7 @@
 #include "vt_control.h"
 #include "debug.h"
 #include "mrtrix.h"
+#include "signal_handler.h"
 
 
 // implementation mostly gleaned from various sites, particularly:
@@ -56,6 +57,8 @@ namespace MR {
       raw.c_cc[VTIME] = 0;
       tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 #endif
+
+      SignalHandler::on_signal (exit_raw_mode);
 
       std::cout << AlternateScreen << CursorOff << MouseTrackingOn;
       std::cout.flush();
